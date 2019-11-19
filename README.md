@@ -16,12 +16,12 @@ Since we haven't finished the implementation of our parallel belief propagation 
 The major issue we are concerned about is whether our implemented residual splash algorithm could have a good speedup over the synchronous belief propagation. Also, debugging a large-scale MPI program can be tricky and time-consuming. 
 
 ## Updated Tentative Schedule
-11/23: Finish implementation of synchronous belief propagation - Shuaijun Ge
-11/23: Finish implementation of distributed Residual Splash algorithm - Yi Zhou
-11/27: Test implemented synchronous belief propagation on datasets - Shuaijun Ge
-11/27: Test implemented distributed Residual Splash algorithm on datasets - Yi Zhou
-12/1: Finish implementation of over-partitioning - Shuaijun Ge, Yi Zhou
-12/6: Test over-partitioning implementation and tune hyperparameters to do experiments - Shuaijun Ge, Yi Zhou
-12/9: Finish final project report - Shuaijun Ge, Yi Zhou
+11/23: Finish implementation of synchronous belief propagation - Shuaijun Ge  
+11/23: Finish implementation of distributed Residual Splash algorithm - Yi Zhou  
+11/27: Test implemented synchronous belief propagation on datasets - Shuaijun Ge  
+11/27: Test implemented distributed Residual Splash algorithm on datasets - Yi Zhou  
+12/1: Finish implementation of over-partitioning - Shuaijun Ge, Yi Zhou  
+12/6: Test over-partitioning implementation and tune hyperparameters to do experiments - Shuaijun Ge, Yi Zhou  
+12/9: Finish final project report - Shuaijun Ge, Yi Zhou  
 
 
