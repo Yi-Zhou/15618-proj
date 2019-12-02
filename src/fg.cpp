@@ -14,13 +14,13 @@ Variable::Variable(int x, int y, int color) {
   }
 }
 
-void Variable::SendMessages(std::vector<Message> boundary_msgs) {
-  // Update belief.
-  Vec2 new_belief = Vec2<float>(1.0, 1.0)
-  for (int i = 0; i < 4; i++) {
+// void Variable::SendMessages(std::vector<Message> boundary_msgs) {
+//   // Update belief.
+//   Vec2 new_belief = Vec2<float>(1.0, 1.0)
+//   for (int i = 0; i < 4; i++) {
     
-  }
-}
+//   }
+// }
 
 FactorGraph::FactorGraph(Image& img) {
   width = img.w;
@@ -29,8 +29,8 @@ FactorGraph::FactorGraph(Image& img) {
   for (int i = 0; i < height; i++) {
     variables.push_back(std::vector<std::shared_ptr<Variable>>());
     for (int j = 0; j < width; j++) {
-      std::shared_ptr<Attribute> var = std::make_shared<Variable>(i, j, 
-                                                                  image[i][j]);
+      // std::shared_ptr<Attribute> var = std::make_shared<Variable>(i, j, 
+      //                                                             image[i][j]);
       std::shared_ptr<Variable> var(i, j, image[i][j]);
       variables[i].push_back(var);
     }

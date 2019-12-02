@@ -11,7 +11,7 @@ enum Direction {
   RIGHT,
   DOWN,
   LEFT
-}
+};
 
 template <class T>
 class Vec2
@@ -47,6 +47,13 @@ public:
         Vec2<T> rs;
         rs.x = x * vin.x;
         rs.y = y * vin.y;
+        return rs;
+    }
+    inline Vec2<T> operator / (const Vec2<T> &vin) const
+    {
+        Vec2<T> rs;
+        rs.x = x / vin.x;
+        rs.y = y / vin.y;
         return rs;
     }
     inline Vec2<T> operator + (const Vec2<T> &vin) const
@@ -102,28 +109,29 @@ public:
 };
 
 enum class PartitionStyle {
-  Static, Random;
-}
+  Static, Random
+};
 
 class Image {
 public:
+  int w, h;
   std::vector<int> pixels;
   Image(int w, int h) {
     this->w = w;
     this->h = h;
     this->pixels.resize(w * h);
   }
-  SetColor(int i, int j, int color) {
+  void SetColor(int i, int j, int color) {
     this->pixels[(i * this->w) + j] = color;
   }
   void SaveToFile(std::string& filename);
 };
 
-Image ReadImage(std::string& filename) 
-{
-  Image img();
-  return img;
-}
+// Image ReadImage(std::string& filename) 
+// {
+//   Image img();
+//   return img;
+// }
 
 struct StartupOptions
 {
@@ -135,4 +143,6 @@ struct StartupOptions
 };
 
 StartupOptions parseOptions(int argc, char *argv[]);
+
+#endif
 
