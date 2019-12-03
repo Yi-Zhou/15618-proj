@@ -17,6 +17,15 @@ Variable::Variable(int x, int y, int color) {
   }
 }
 
+Vec2<float> Variable::calulateBelief() {
+  //TODO: whether to normalize
+  Vec2<float> belief(1.0, 1.0);
+  for (int i = 0; i < 5; i++) {
+    belief *= in_msgs[i];
+  }
+  return belief;
+}
+
 // void Variable::SendMessages(std::vector<Message> boundary_msgs) {
 //   // Update belief.
 //   Vec2 new_belief = Vec2<float>(1.0, 1.0)

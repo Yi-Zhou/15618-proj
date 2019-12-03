@@ -3,6 +3,10 @@
 #include "mpi.h"
 #include <cassert>
 
+
+#define SIZE_TAG 1
+#define DATA_TAG 2
+
 class SynchronousBeliefPropagator {
 public:
     double beta;
@@ -20,6 +24,60 @@ public:
         // sub_graph = partition(fg)
         this->fg = fg;
         //partition(fg);
+    }
+
+    std::vector<Message> merge() {
+        std::vector<Message> beliefs;
+
+        // collect beliefs of variables in current partition
+        for (auto vector : fg->variables) {
+            for (std::shared_ptr<Variable> v : vector) {
+                if (v->partition != rank) {
+                    continue;
+                }
+                Vec2<float> belief = v->calulateBelief();
+                Message msg;
+                msg.position = v->position;
+                msg.message = v->belief;
+                msg.direction = 0; // can be ignored
+                Vec2<float> norm_b = v->belief.normalize();
+                //printf("sending normalized belief for v(%d, %d) is (%f, %f)\n", v->position.x, v->position.y,
+                //norm_b.x, norm_b.y);
+
+                beliefs.push_back(msg);
+            }
+        }
+
+        //start to merge with other processors;
+        int tag1 = SIZE_TAG;
+        int tag2 = DATA_TAG;
+        for (int i = 1; i < n_procs; i <<= 1) {
+            int pair;
+            if (rank % (i << 1) < i) {
+                pair = rank + i;
+            } else {
+                pair = rank - i;
+            }
+            int curr_size = beliefs.size();
+            MPI_Request req;
+            int size;
+            MPI_Irecv(&size, 1, MPI_INT, pair, tag1, MPI_COMM_WORLD, &req);
+            MPI_Send(&curr_size, 1, MPI_INT, pair, tag1, MPI_COMM_WORLD);
+            MPI_Wait(&req, MPI_STATUS_IGNORE);
+
+            beliefs.resize(curr_size + size);
+
+            //printf("beliefs size %d after resize %d\n", size, beliefs.size());
+            MPI_Irecv(&beliefs[curr_size], sizeof(Message) * size, MPI_BYTE, pair, tag2, MPI_COMM_WORLD, &req);
+            MPI_Send(&beliefs[0], sizeof(Message) * curr_size, MPI_BYTE, pair, tag2, MPI_COMM_WORLD);
+            MPI_Wait(&req, MPI_STATUS_IGNORE);
+            //printf("receiving normalized belief for v(%d, %d) is (%f, %f)\n", msg.position.x, msg.position.y,
+            // msg.message.x, msg.message.y);
+        }
+
+        assert(beliefs.size() == fg->width * fg->height);
+        return beliefs;
+        // first calculate beliefs
     }
 
     float updateInMessages(std::vector<Message>& in_messages) {
@@ -40,6 +98,7 @@ public:
     }
     
     void getOutMessages(std::vector<std::vector<Message>>& out_messages) {
+        // TODO: better way? to decrease time complexity
         for (auto vector : fg->variables) {
             for (std::shared_ptr<Variable> v : vector) {
 
@@ -84,6 +143,7 @@ public:
 
         std::vector<std::vector<Message>> out_messages(n_procs, std::vector<Message>());
         std::vector<Message> in_messages;
+
         getOutMessages(out_messages);
         for (int i = 0; i < n_procs; i++) {
             if (!out_messages[i].empty()) {
@@ -102,7 +162,7 @@ public:
                     msg.message.x, msg.message.y, msg.position.x, msg.position.y, msg.direction, rank, i);
                     MPI_Isend(&size, 1, MPI_INT, i, tag1, MPI_COMM_WORLD, &size_req);
                    // MPI_Isend(&out_messages[i], size, message_dt, i, tag2, MPI_COMM_WORLD, &msg_req);
-                    MPI_Isend(&msg, sizeof(Message) * size, MPI_BYTE, i, tag2, MPI_COMM_WORLD, &msg_req);
+                    MPI_Isend(&out_messages[i][0], sizeof(Message) * size, MPI_BYTE, i, tag2, MPI_COMM_WORLD, &msg_req);
                    // MPI_Isend(&out_messages[i], size, message_dt, i, tag2, MPI_COMM_WORLD, &msg_req);
                     size_reqs.push_back(size_req);
                     msg_reqs.push_back(msg_req);
@@ -128,7 +188,6 @@ public:
             size_reqs.push_back(size_req);
         }
 
-        //TODO: may not compile
         MPI_Status stats[size_reqs.size()];
         assert(size_reqs.size() > 0);
         MPI_Waitall(size_reqs.size(), &size_reqs[0], stats);
@@ -148,7 +207,6 @@ public:
                     neighbor_procs[i], tag2, MPI_COMM_WORLD, &msg_req);
             // MPI_Recv(&in_messages[curr_size], sizes[i], message_dt,
             //          neighbor_procs[i], tag2, MPI_COMM_WORLD, &msg_req);
-            //in_messages.push_back(msg);
             msg_reqs.push_back(msg_req);
             curr_size += sizes[i];
         }
@@ -156,6 +214,8 @@ public:
         assert(msg_reqs.size() == size_reqs.size());
         MPI_Waitall(msg_reqs.size(), &msg_reqs[0], stats);
         //printf("msg_reqs.size %d\n", msg_reqs.size());
+
+        // TODO: Only For Debugging 
         int i = 0;
         for (Message msg : in_messages) {
             Vec2<int> p = msg.position;
@@ -199,7 +259,7 @@ private:
 
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
-    std::vector<std::vector<int>> img{{0, 0}, {0, 0}};
+    std::vector<std::vector<int>> img{{1, 1}, {1, 1}};
     // Image& img = ReadImage(image);
     std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img);
     SynchronousBeliefPropagator bp(fg);
@@ -210,6 +270,18 @@ int main(int argc, char *argv[]) {
             break;
         }
         i++;
+    }
+    std::vector<Message> beliefs = bp.merge();
+    int rank; 
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    if (rank == 0) {
+        for (Message m : beliefs) {
+            Vec2<float> norm_b = m.message.normalize();
+            printf("normalized belief for v(%d, %d) is (%f, %f)\n", m.position.x, m.position.y,
+            norm_b.x, norm_b.y);
+        }
+
     }
     MPI_Finalize();
     // bp.merge(); TODO: calculate beliefs and merge the beliefs

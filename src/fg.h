@@ -18,6 +18,7 @@ public:
   int partition = 0;
   float residual;
   int i, j;
+  //Do we really need to store the belief?
   Vec2<float> belief;
   Vec2<int> position;
   Vec2<float> in_msgs[5];
@@ -26,6 +27,7 @@ public:
 
   Variable(int x, int y, int color); 
   void SendMessages();
+  Vec2<float> calulateBelief();
 
   bool operator < (Variable& var) {
     return residual < var.residual;
