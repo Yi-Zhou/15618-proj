@@ -24,8 +24,11 @@ public:
         x = vx;
         y = vy;
     }
-    inline float l1_norm(const Vec2<T>& v1, const Vec2<T>& v2) {
-      return std::abs(v1.x - v2.x) + std::abs(v1.y - v2.y);
+    Vec2<T> normalize() {
+        return Vec2(x / (x + y), y / (x + y));
+    }
+    float l1_norm(const Vec2<T>& vin) {
+      return std::abs(x - vin.x) + std::abs(y - vin.y);
     }
     static inline T dot(const Vec2<T> & v0, const Vec2<T> & v1)
     {

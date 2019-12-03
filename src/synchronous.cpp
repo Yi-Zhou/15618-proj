@@ -22,26 +22,28 @@ public:
         //partition(fg);
     }
 
-    float updateInMessages(std::vector<Message> in_messages) {
+    float updateInMessages(std::vector<Message>& in_messages) {
         float max_diff = 0;
         for (Message msg : in_messages) {
             Vec2<int> p = msg.position;
+            // printf("receive msg to (%d, %d) from direction %d\n", p.x, p.y, msg.direction);
             std::shared_ptr<Variable> v = fg->variables[p.x][p.y];
 
             Vec2<float> old_message = v->in_msgs[msg.direction];
-            Vec2<float> diff_x = old_message - msg.message;
-            max_diff = std::max(std::abs(diff_x.x) + std::abs(diff_x.y), max_diff);
+            Vec2<float> diff = old_message - msg.message;
+            //TODO: check whether normalizing in this way is correct or not
+            max_diff = std::max(old_message.normalize().l1_norm(msg.message.normalize()), max_diff);
 
             v->in_msgs[msg.direction] = msg.message;
         }
         return max_diff;
     }
     
-    void getOutMessages(std::vector<std::vector<Message>> out_messages) {
+    void getOutMessages(std::vector<std::vector<Message>>& out_messages) {
         for (auto vector : fg->variables) {
             for (std::shared_ptr<Variable> v : vector) {
 
-                if (v->rank != rank) {
+                if (v->partition != rank) {
                     continue;
                 }
 
@@ -51,20 +53,20 @@ public:
                 }
 
                 for (int i = 0; i < 4; i++) {
-                    Vec2<float> prod = out_msg / v->in_msgs[i];
-                    int direction = (i + 2) % 4;
                     std::shared_ptr<Variable> neighbor = v->neighbors[i];
 
                     if (neighbor != nullptr) {
+                        Vec2<float> prod = out_msg / v->in_msgs[i];
+                        printf("prod (%f, %f)\n", prod.x, prod.y);
                         int direction = (i + 2) % 4;
-                        
+                        //printf("neighbor from %d\n", neighbor->partition);
                         Message msg;
                         msg.direction = direction;
-                        msg.message = Vec2<float>(prod.x * edge_potential.x.x + prod.y * edge_potential.x.y,
-                        prod.x * edge_potential.y.x + prod.y * edge_potential.y.y);
+                        msg.message = Vec2<float>(prod.x * edge_potential.x.x + prod.y * edge_potential.y.x,
+                        prod.x * edge_potential.x.y + prod.y * edge_potential.y.y);
 
                         msg.position = Vec2<int>(neighbor->position.x, neighbor->position.y);
-                        out_messages[neighbor->rank].push_back(msg);
+                        out_messages[neighbor->partition].push_back(msg);
                     }
                 }
 
@@ -73,18 +75,6 @@ public:
     }
 
     bool beliefPropagate() {
-        MPI_Aint displacements[3] = {offsetof(Message, direction), 
-                                    offsetof(Message, message), 
-                                    offsetof(Message, position)};
-                                    
-        
-        int block_lengths[3] = {1, 2, 2};
-        MPI_Datatype types[3] = {MPI_INT, MPI_FLOAT, MPI_INT};
-        MPI_Datatype message_dt;
-
-        MPI_Type_create_struct(3, block_lengths, displacements, types, 
-                                &message_dt);
-        MPI_Type_commit(&message_dt);
         std::vector<bool> neighbor_procs_set(n_procs, false);
 
         int tag1 = 1; // transmit a size
@@ -93,10 +83,11 @@ public:
         std::vector<MPI_Request> msg_reqs;
 
         std::vector<std::vector<Message>> out_messages(n_procs, std::vector<Message>());
-        getOutMessages(out_messages);
         std::vector<Message> in_messages;
+        getOutMessages(out_messages);
         for (int i = 0; i < n_procs; i++) {
             if (!out_messages[i].empty()) {
+                //printf("out_messages to %d size %d for rank %d\n", i, out_messages[i].size(), rank);
                 if (i == rank) {
                     in_messages.insert(in_messages.end(), 
                         out_messages[i].begin(),
@@ -106,8 +97,13 @@ public:
                     int size = out_messages[i].size();
                     // to decide tag
                     MPI_Request size_req, msg_req;
+                    Message msg = out_messages[i][0];
+                    printf("sending msg (%f, %f) to (%d, %d) from direction %d from rank %d to i %d\n", 
+                    msg.message.x, msg.message.y, msg.position.x, msg.position.y, msg.direction, rank, i);
                     MPI_Isend(&size, 1, MPI_INT, i, tag1, MPI_COMM_WORLD, &size_req);
-                    MPI_Isend(&out_messages[i], size, message_dt, i, tag2, MPI_COMM_WORLD, &msg_req);
+                   // MPI_Isend(&out_messages[i], size, message_dt, i, tag2, MPI_COMM_WORLD, &msg_req);
+                    MPI_Isend(&msg, sizeof(Message) * size, MPI_BYTE, i, tag2, MPI_COMM_WORLD, &msg_req);
+                   // MPI_Isend(&out_messages[i], size, message_dt, i, tag2, MPI_COMM_WORLD, &msg_req);
                     size_reqs.push_back(size_req);
                     msg_reqs.push_back(msg_req);
                     neighbor_procs_set[i] = true;
@@ -115,40 +111,70 @@ public:
             }
         }
 
+
         std::vector<int> neighbor_procs;
         for (int i = 0; i < n_procs; i++) {
             if (neighbor_procs_set[i]) {
                 neighbor_procs.push_back(i);
+                //printf("%d ", i);
             }
         }
 
         int sizes[neighbor_procs.size()];
         for (int i = 0; i < neighbor_procs.size(); i++) {
             MPI_Request size_req;
-            MPI_Irecv(&sizes[i], sizeof(int), MPI_INT, neighbor_procs[i], 
+            MPI_Irecv(&sizes[i], 1, MPI_INT, neighbor_procs[i], 
                         tag1, MPI_COMM_WORLD, &size_req);
             size_reqs.push_back(size_req);
         }
 
         //TODO: may not compile
         MPI_Status stats[size_reqs.size()];
+        assert(size_reqs.size() > 0);
         MPI_Waitall(size_reqs.size(), &size_reqs[0], stats);
 
+        int total_size = 0;
+        for (int i = 0; i < neighbor_procs.size(); i++) {
+            total_size += sizes[i];
+        }
+        //printf("size_reqs.size %d total_size %d\n", size_reqs.size(), total_size);
+
+        //Message inbox[total_size];
+        int curr_size = in_messages.size();
+        in_messages.resize(total_size + curr_size);
         for (int i = 0; i < neighbor_procs.size(); i++) {
             MPI_Request msg_req;
-            MPI_Irecv(&in_messages[in_messages.size() - 1], sizes[i], message_dt,
+            MPI_Irecv(&in_messages[curr_size], sizeof(Message) * sizes[i], MPI_BYTE,
                     neighbor_procs[i], tag2, MPI_COMM_WORLD, &msg_req);
+            // MPI_Recv(&in_messages[curr_size], sizes[i], message_dt,
+            //          neighbor_procs[i], tag2, MPI_COMM_WORLD, &msg_req);
+            //in_messages.push_back(msg);
+            msg_reqs.push_back(msg_req);
+            curr_size += sizes[i];
         }
 
         assert(msg_reqs.size() == size_reqs.size());
         MPI_Waitall(msg_reqs.size(), &msg_reqs[0], stats);
+        //printf("msg_reqs.size %d\n", msg_reqs.size());
+        int i = 0;
+        for (Message msg : in_messages) {
+            Vec2<int> p = msg.position;
+            printf("receive msg(%f, %f) to (%d, %d) from direction %d from proc %d to rank %d\n", 
+            msg.message.x, msg.message.y,
+            p.x, p.y, msg.direction, neighbor_procs[i], rank);
+            //printf("receive msg to %d from proc %d to rank %d\n", msg.direction, neighbor_procs[i], rank);
+            i++;
+        }
 
         float diff = updateInMessages(in_messages);
+        printf("belief propgate diff %f rank %d\n", diff, rank);
+        //return true;
         return is_converged(diff);
     }
 
 private:
     bool is_converged(float diff) {
+        // done test in toy_test
         MPI_Request req;
         int tag1 = 1;
 
@@ -162,22 +188,30 @@ private:
             float other_max_diff;
             MPI_Irecv(&other_max_diff, 1, MPI_FLOAT, pair, tag1, MPI_COMM_WORLD, &req);
             MPI_Send(&diff, 1, MPI_FLOAT, pair, tag1, MPI_COMM_WORLD);
-            diff = std::max(other_max_diff, diff);
             MPI_Wait(&req, MPI_STATUS_IGNORE);
+            diff = std::max(other_max_diff, diff);
         }
 
+        //printf("max diff %f\n", diff);
         return diff < beta;
     }
 };
 
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
+    std::vector<std::vector<int>> img{{0, 0}, {0, 0}};
     // Image& img = ReadImage(image);
-    // std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img);
-    // SynchronousBeliefPropagator bp(fg);
+    std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img);
+    SynchronousBeliefPropagator bp(fg);
 
-    //while (!converged) {
-    // while (bp.beliefPropagate());
+    int i = 0;
+    while (!bp.beliefPropagate()) {
+        if (i == 10) {
+            break;
+        }
+        i++;
+    }
+    MPI_Finalize();
     // bp.merge(); TODO: calculate beliefs and merge the beliefs
         // check if converged
 }

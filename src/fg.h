@@ -4,6 +4,7 @@
 #include <memory>
 #include <queue>
 #include <vector>
+#include <limits>
 #include "common.h"
 
 struct Message {
@@ -20,7 +21,6 @@ public:
   Vec2<float> belief;
   Vec2<int> position;
   Vec2<float> in_msgs[5];
-  int rank;
   int parent;
   std::shared_ptr<Variable> neighbors[4];
 
@@ -53,6 +53,7 @@ public:
   int width, height;
   std::vector<std::vector<std::shared_ptr<Variable>>> variables;
   FactorGraph(Image& img);
+  FactorGraph(std::vector<std::vector<int>>& img);
 };
 
 #endif
