@@ -22,6 +22,7 @@ Vec2<float> Variable::calulateBelief() {
   Vec2<float> belief(1.0, 1.0);
   for (int i = 0; i < 5; i++) {
     belief *= in_msgs[i];
+    //printf("v(%d, %d) in_msgs[%d](%f, %f)\n", position.x, position.y, i, in_msgs[i].x, in_msgs[i].y);
   }
   return belief;
 }
@@ -35,8 +36,8 @@ Vec2<float> Variable::calulateBelief() {
 // }
 FactorGraph::FactorGraph(std::vector<std::vector<int>>& img) {
   // img is a 2-d matrix
-  width = img.size();
-  height = img[0].size();
+  width = img[0].size();
+  height = img.size();
   variables.resize(width);
   for (int i = 0; i < height; i++) {
     variables.push_back(std::vector<std::shared_ptr<Variable>>());
@@ -45,7 +46,8 @@ FactorGraph::FactorGraph(std::vector<std::vector<int>>& img) {
       //                                                             image[i][j]);
       std::shared_ptr<Variable> var = std::make_shared<Variable>(Variable(i, j, img[i][j]));
       //TODO: remove this line
-      var->partition = i * height + j;
+      var->partition = 2 * (i / 2) + j / 4;
+      //var->partition = i * width + j;
       variables[i].push_back(var);
     }
   }
