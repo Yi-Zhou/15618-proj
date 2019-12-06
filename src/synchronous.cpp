@@ -1,4 +1,4 @@
-
+#include "common.h"
 #include "fg.h"
 #include "mpi.h"
 #include <cassert>
@@ -20,8 +20,8 @@ public:
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
         //TODO: adjust parameters. I don't think 0.9 can work here
-        edge_potential.x = Vec2<float>(1.0, 0.5);
-        edge_potential.y = Vec2<float>(0.5, 1.0);
+        edge_potential.x = Vec2<float>(1.0, 0.3);
+        edge_potential.y = Vec2<float>(0.3, 1.0);
         // sub_graph = partition(fg)
         this->fg = fg;
         //partition(fg);
@@ -91,7 +91,7 @@ public:
             Vec2<float> old_message = v->in_msgs[msg.direction];
             Vec2<float> diff = old_message - msg.message;
             //TODO: check whether normalizing in this way is correct or not
-            max_diff = std::max(old_message.normalize().l1_norm(msg.message.normalize()), max_diff);
+            max_diff = std::max(old_message.l1_norm(msg.message), max_diff);
 
             v->in_msgs[msg.direction] = msg.message;
         }
@@ -259,17 +259,20 @@ private:
 
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
-    std::vector<std::vector<int>> img{{1, 1, 1, 1, 1, 1, 1, 1}, 
-                                      {1, 1, 1, 1, 1, 1, 1, 1},
-                                      {1, 0, 1, 1, 1, 0, 1, 1},
-                                      {1, 1, 1, 1, 1, 1, 1, 1},
-                                      {1, 1, 1, 0, 1, 1, 1, 1},
-                                      {1, 1, 1, 1, 1, 1, 1, 1},
-                                      {1, 1, 1, 1, 1, 0, 1, 1},
-                                      {1, 1, 1, 1, 1, 1, 1, 1},
-                                      };
+    // std::vector<std::vector<int>> img{{1, 1, 1, 1, 1, 1, 1, 1}, 
+    //                                   {1, 1, 1, 1, 1, 1, 1, 1},
+    //                                   {1, 0, 1, 1, 1, 0, 1, 1},
+    //                                   {1, 1, 1, 1, 1, 1, 1, 1},
+    //                                   {1, 1, 1, 0, 1, 1, 1, 1},
+    //                                   {1, 1, 1, 1, 1, 1, 1, 1},
+    //                                   {1, 1, 1, 1, 1, 0, 1, 1},
+    //                                   {1, 1, 1, 1, 1, 1, 1, 1},
+    //                                   };
     // Image& img = ReadImage(image);
-    std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img);
+
+    Image img = Image::ReadImage("data/rice.txt");
+    printf("img %d\n", img.pixels.size(), img.pixels[0].size());
+    std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels, "data/256_256_8.txt");
     SynchronousBeliefPropagator bp(fg);
 
     int i = 0;
@@ -284,12 +287,13 @@ int main(int argc, char *argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     if (rank == 0) {
+        assert(beliefs.size() == img.w * img.h);
+        FactorGraph::writeDenoisedImage(beliefs, "output/denoised_rice.txt");
         for (Message m : beliefs) {
             Vec2<float> norm_b = m.message.normalize();
             printf("normalized belief for v(%d, %d) is (%f, %f)\n", m.position.x, m.position.y,
             norm_b.x, norm_b.y);
         }
-
     }
     MPI_Finalize();
     // bp.merge(); TODO: calculate beliefs and merge the beliefs
