@@ -34,19 +34,25 @@ Vec2<float> Variable::calulateBelief() {
     
 //   }
 // }
-FactorGraph::FactorGraph(std::vector<std::vector<int>>& img) {
+
+FactorGraph::FactorGraph(std::vector<std::vector<int>>& img, const char *partitionFile) {
   // img is a 2-d matrix
   width = img[0].size();
   height = img.size();
   variables.resize(width);
+  std::ifstream inFile(partitionFile);
+
   for (int i = 0; i < height; i++) {
     variables.push_back(std::vector<std::shared_ptr<Variable>>());
     for (int j = 0; j < width; j++) {
+      std::string line;
+      std::getline(inFile, line);
       // std::shared_ptr<Attribute> var = std::make_shared<Variable>(i, j, 
       //                                                             image[i][j]);
       std::shared_ptr<Variable> var = std::make_shared<Variable>(Variable(i, j, img[i][j]));
       //TODO: remove this line
-      var->partition = 2 * (i / 2) + j / 4;
+      //var->partition = 2 * (i / 2) + j / 4;
+      var->partition = std::stoi(line);
       //var->partition = i * width + j;
       variables[i].push_back(var);
     }
@@ -69,6 +75,21 @@ FactorGraph::FactorGraph(std::vector<std::vector<int>>& img) {
     }
   }
 
+}
+
+void FactorGraph::writeDenoisedImage(std::vector<Message>& beliefs, const char* filename) {
+    std::ofstream outFile(filename);
+
+    for (Message m : beliefs) {
+        Vec2<float> norm_b = m.message.normalize();
+            printf("normalized belief for v(%d, %d) is (%f, %f)\n", m.position.x, m.position.y,
+            norm_b.x, norm_b.y);
+        int color = norm_b.x > norm_b.y ? 0 : 1;
+
+        outFile << m.position.x << " " << m.position.y << " " << color << std::endl;
+    }
+
+    outFile.close();
 }
 
 // FactorGraph::FactorGraph(Image& img) {

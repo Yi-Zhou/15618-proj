@@ -55,7 +55,8 @@ public:
   int width, height;
   std::vector<std::vector<std::shared_ptr<Variable>>> variables;
   FactorGraph(Image& img);
-  FactorGraph(std::vector<std::vector<int>>& img);
+  FactorGraph(std::vector<std::vector<int>>& img, const char* partitionFile);
+  static void writeDenoisedImage(std::vector<Message>& beliefs, const char* filename);
 };
 
 #endif
