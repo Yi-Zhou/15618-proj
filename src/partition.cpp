@@ -1,6 +1,7 @@
 #include <cstddef> /* NULL */
 #include <metis.h>
 #include <iostream> 
+#include <fstream> 
 #include "common.h"
 
 
@@ -60,7 +61,7 @@ public:
         height = h;
     }
    
-    void partition(int n_parts) {
+    void partition(int n_parts, const char* result) {
         // |---w----
         // h
         // |
@@ -114,12 +115,18 @@ public:
 				       NULL, NULL, NULL, &n_parts, NULL,
 				       NULL, NULL, &objval, part);
 
-         std::cout << ret << std::endl;
+        std::cout << ret << std::endl;
     
+        std::ofstream output;
+        output.open(result);
+
         for(unsigned part_i = 0; part_i < total_nodes; part_i++){
+            Vec2<int> p = idxToPosition(part_i);
 	        std::cout << part_i << " " << part[part_i] << std::endl;
+            output << part[part_i] << std::endl;
         }
 
+        output.close();
     }
 private:
     int positionToIdx(int x, int y) {
@@ -133,7 +140,7 @@ private:
 };
 
 int main() {
-    MetisImage img(5, 3);
-    img.partition(4);
+    MetisImage img(256, 256);
+    img.partition(8, "data/256_256_8.txt");
 }
 
