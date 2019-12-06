@@ -4,6 +4,8 @@
 #include <cstring>
 #include <string>
 #include <cmath>
+#include <vector>
+#include <fstream>
 
 const float ENERGY = 0.1;
 enum Direction {
@@ -118,23 +120,24 @@ enum class PartitionStyle {
 class Image {
 public:
   int w, h;
-  std::vector<int> pixels;
-  Image(int w, int h) {
-    this->w = w;
-    this->h = h;
-    this->pixels.resize(w * h);
-  }
-  void SetColor(int i, int j, int color) {
-    this->pixels[(i * this->w) + j] = color;
-  }
+  // std::vector<int> pixels;
+  std::vector<std::vector<int>> pixels;
+
+  static Image ReadImage(const char* filename);
+
+  // void SetColor(int i, int j, int color) {
+  //   this->pixels[(i * this->w) + j] = color;
+  // }
   void SaveToFile(std::string& filename);
+private:
+  Image(std::vector<std::vector<int>>& pixels) {
+    this->pixels = pixels;
+    this->w = pixels.size();
+    this->h = pixels[0].size();
+  }
 };
 
-// Image ReadImage(std::string& filename) 
-// {
-//   Image img();
-//   return img;
-// }
+
 
 struct StartupOptions
 {

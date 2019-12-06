@@ -7,7 +7,30 @@
 #include <iomanip>
 #include "common.h"
 
-Image ReadImage(std::string& filename);
+Image Image::ReadImage(const char* imgFile) 
+{
+  std::ifstream inFile(imgFile);
+  std::string delimiter = " ";
+  std::string line;
+  int i = 0;
+  std::vector<std::vector<int>> pixels;
+  while (std::getline(inFile, line))
+  {
+    pixels.push_back(std::vector<int>());
+    size_t pos = 0;
+    while ((pos = line.find(delimiter)) != std::string::npos) {
+      std::string token = line.substr(0, pos);
+      int color = std::stoi(token);
+      pixels[i].push_back(color);
+      //std::cout << token << std::endl;
+      line.erase(0, pos + delimiter.length());
+    }
+    pixels[i].push_back(std::stoi(line));
+    i++;
+  }  
+  return Image(pixels);
+}
+
 
 StartupOptions parseOptions(int argc, char *argv[])
 {
@@ -38,5 +61,5 @@ StartupOptions parseOptions(int argc, char *argv[])
 }
 
 void Image::SaveToFile(std::string& filename) {
-  return
+  return;
 }
