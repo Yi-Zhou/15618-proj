@@ -6,6 +6,8 @@
 #include <cmath>
 
 const float ENERGY = 0.1;
+const float PHI = 0.9;
+
 enum Direction {
   UP = 0,
   RIGHT,

@@ -22,6 +22,10 @@ struct Message {
   std::shared_ptr<Variable> variable;
 }
 
+inline int opposite(int direction) {
+  return (i + 2) % 4;
+}
+
 class DistributedBeliefPropagator {
 public:
   std::priority_queue<std::shared_ptr<Variable>, 
@@ -38,20 +42,26 @@ public:
   void SendMessages(std::shared_ptr<Variable> v, 
                     std::vector<Message>& boundary_msgs) {
     // Update belief.
-    Vec2 new_belief = Vec2<float>(1.0, 1.0)
+    Vec2<float> new_belief = v->in_msgs[4];
     for (int i = 0; i < 4; i++) {
-      int direction = (i + 2) % 4;
+      new_belief *= v->in_msgs[i];
+    }
+    v->belief = new_belief;
+
+    // Update in-messages for each of the variable's neighbors.
+    for (int i = 0; i < 4; i++) {
+      int j = opposite(i);
+      Vec2<float> out_msg = new_belief / v->in_msgs[i];
       std::shared_ptr<Variable> neighbor = neighbors[i];
       if (neighbor->partition == rank) {
-        neighbor->in_
+        neighbor.in_msg[j] = 
       } else {
         Message msg;
-        msg.direction = (i + 2) % 4;
+        msg.direction = j;
         msg.message = Vec2();
         msg.variable = neighbor;
         boundary_msgs.emplace_back(msg);
       }
-
     }
   }
 
