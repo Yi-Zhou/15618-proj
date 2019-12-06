@@ -271,7 +271,7 @@ int main(int argc, char *argv[]) {
     // Image& img = ReadImage(image);
 
     Image img = Image::ReadImage("data/rice.txt");
-    printf("img %d\n", img.pixels.size(), img.pixels[0].size());
+    printf("img %lu %lu\n", img.pixels.size(), img.pixels[0].size());
     std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels, "data/256_256_8.txt");
     SynchronousBeliefPropagator bp(fg);
 
