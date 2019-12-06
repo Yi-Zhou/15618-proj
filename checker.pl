@@ -84,7 +84,7 @@ sub process_implementation {
         print ("$implementation_type Implementation:\n");
         # if ($executable =~ /synchronous\z/) {
 	    if ($running_on_latedays) {
-            $executable = "mpirun --mca btl vader,self,tcp -np 8 -npernode 8 --hostfile ${curdir}/hosts $executable";
+            $executable = "mpirun --mca btl vader,self,tcp -np 8 -npernode 8 --hostfile ./hosts $executable";
         } else {
             $executable = "mpirun -np 8 $executable";
 	    }
