@@ -4,6 +4,8 @@
 #include <cstring>
 #include <string>
 #include <cmath>
+#include <vector>
+#include <fstream>
 
 const float ENERGY = 0.1;
 const float PHI = 0.9;
@@ -13,7 +15,7 @@ enum Direction {
   RIGHT,
   DOWN,
   LEFT
-}
+};
 
 template <class T>
 class Vec2
@@ -26,8 +28,11 @@ public:
         x = vx;
         y = vy;
     }
-    inline float l1_norm(const Vec2<T>& v1, const Vec2<T>& v2) {
-      return std::abs(v1.x - v2.x) + std::abs(v1.y - v2.y);
+    Vec2<T> normalize() {
+        return Vec2(x / (x + y), y / (x + y));
+    }
+    float l1_norm(const Vec2<T>& vin) {
+      return std::abs(x - vin.x) + std::abs(y - vin.y);
     }
     static inline T dot(const Vec2<T> & v0, const Vec2<T> & v1)
     {
@@ -49,6 +54,13 @@ public:
         Vec2<T> rs;
         rs.x = x * vin.x;
         rs.y = y * vin.y;
+        return rs;
+    }
+    inline Vec2<T> operator / (const Vec2<T> &vin) const
+    {
+        Vec2<T> rs;
+        rs.x = x / vin.x;
+        rs.y = y / vin.y;
         return rs;
     }
     inline Vec2<T> operator + (const Vec2<T> &vin) const
@@ -104,28 +116,30 @@ public:
 };
 
 enum class PartitionStyle {
-  Static, Random;
-}
+  Static, Random
+};
 
 class Image {
 public:
-  std::vector<int> pixels;
-  Image(int w, int h) {
-    this->w = w;
-    this->h = h;
-    this->pixels.resize(w * h);
-  }
-  SetColor(int i, int j, int color) {
-    this->pixels[(i * this->w) + j] = color;
-  }
+  int w, h;
+  // std::vector<int> pixels;
+  std::vector<std::vector<int>> pixels;
+
+  static Image ReadImage(const char* filename);
+
+  // void SetColor(int i, int j, int color) {
+  //   this->pixels[(i * this->w) + j] = color;
+  // }
   void SaveToFile(std::string& filename);
+private:
+  Image(std::vector<std::vector<int>>& pixels) {
+    this->pixels = pixels;
+    this->w = pixels.size();
+    this->h = pixels[0].size();
+  }
 };
 
-Image ReadImage(std::string& filename) 
-{
-  Image img();
-  return img;
-}
+
 
 struct StartupOptions
 {
@@ -137,4 +151,6 @@ struct StartupOptions
 };
 
 StartupOptions parseOptions(int argc, char *argv[]);
+
+#endif
 

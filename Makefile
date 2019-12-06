@@ -16,7 +16,7 @@ endif
 SOURCES := src/*.cpp
 HEADERS := src/*.h
 
-TARGETBIN := nbody-$(CONFIGURATION)
+TARGETBIN := bp-$(CONFIGURATION)
 
 CXX = mpic++
 

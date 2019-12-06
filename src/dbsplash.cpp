@@ -18,7 +18,7 @@ struct deref_cmp {
 
 struct Message {
   int direction;
-  Vec2 message;
+  Vec2<float> message;
   std::shared_ptr<Variable> variable;
 }
 
