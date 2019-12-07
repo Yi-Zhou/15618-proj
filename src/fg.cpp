@@ -3,8 +3,6 @@
 Variable::Variable(int x, int y, int color) {
   // Colors: 0-Black | 1-White.
   //TODO: remove redundant variable ?
-  i = x;
-  j = y;
   position = Vec2<int>(x, y);
 
   in_msgs[4] = Vec2<float>(color? ENERGY:1.0, color? 1.0:ENERGY);
@@ -13,7 +11,7 @@ Variable::Variable(int x, int y, int color) {
 
   // Initialize all messages to 1.
   for (int i = 0; i < 4; i++) {
-    in_msgs[i] = {1.0, 1.0};
+    in_msgs[i] = {0.5, 0.5};
   }
 }
 
@@ -27,13 +25,12 @@ Vec2<float> Variable::calulateBelief() {
   return belief;
 }
 
-// void Variable::SendMessages(std::vector<Message> boundary_msgs) {
-//   // Update belief.
-//   Vec2 new_belief = Vec2<float>(1.0, 1.0)
-//   for (int i = 0; i < 4; i++) {
-    
-//   }
-// }
+void Variable::ReceiveMessage(Vec2<float>& msg, int direction) {
+  Vec2<float> new_belief = belief / in_msg[j] * msg;
+  belief = new_belief;
+  in_msg[j] = msg;
+  return (new_belief - belief).l1_norm();
+}
 
 FactorGraph::FactorGraph(std::vector<std::vector<int>>& img, const char *partitionFile) {
   // img is a 2-d matrix
@@ -57,24 +54,33 @@ FactorGraph::FactorGraph(std::vector<std::vector<int>>& img, const char *partiti
       variables[i].push_back(var);
     }
   }
+}
 
-  for (int i = 0; i < height; i++) {
-    for (int j = 0; j < width; j++) {
-      if (i > 0) {
-        variables[i][j]->neighbors[UP] = variables[i-1][j];
-      }
-      if (j < width - 1) {
-        variables[i][j]->neighbors[RIGHT] = variables[i][j+1];
-      }
-      if (i < height - 1) {
-        variables[i][j]->neighbors[DOWN] = variables[i+1][j];
-      }
-      if (j > 0) {
-        variables[i][j]->neighbors[LEFT] = variables[i][j-1];
-      }
-    }
+std::shared_ptr<Variable> FactorGraph::GetVariable(int i, int j) {
+  if (i >= 0 && i < height && j >= 0 && j < width) {
+    return variables[i][j];
   }
+  return std::shared_ptr<Variable>(nullptr);
+}
 
+std::shared_ptr<Variable> FactorGraph::GetNeighbor(std::shared_ptr<Variable> var, int direction) {
+  if (direction == 0) {
+    ni = v->position.x;
+    nj = v->position.y - 1;
+  }
+  else if (direction == 1) {
+    ni = v->position.x + 1;
+    nj = v->position.y;
+  }
+  else if (direction == 2) {
+    ni = v->position.x;
+    nj = v->position.y + 1;
+  }
+  else if (direction == 3) {
+    ni = v->position.x - 1;
+    nj = v->position.y;
+  }
+  return GetVariable(ni, nj);
 }
 
 void FactorGraph::writeDenoisedImage(std::vector<Message>& beliefs, const char* filename) {
@@ -91,35 +97,3 @@ void FactorGraph::writeDenoisedImage(std::vector<Message>& beliefs, const char* 
 
     outFile.close();
 }
-
-// FactorGraph::FactorGraph(Image& img) {
-//   width = img.w;
-//   height = img.h;
-//   variables.resize(width);
-//   for (int i = 0; i < height; i++) {
-//     variables.push_back(std::vector<std::shared_ptr<Variable>>());
-//     for (int j = 0; j < width; j++) {
-//       // std::shared_ptr<Attribute> var = std::make_shared<Variable>(i, j, 
-//       //                                                             image[i][j]);
-//       std::shared_ptr<Variable> var(i, j, img[i][j]);
-//       variables[i].push_back(var);
-//     }
-//   }
-
-//   for (int i = 0; i < height; i++) {
-//     for (int j = 0; j < width; j++) {
-//       if (i > 0) {
-//         variables[i][j]->neighbors[UP] = variables[i-1][j];
-//       }
-//       if (j < width - 1) {
-//         variables[i][j]->neighbors[RIGHT] = variables[i][j+1];
-//       }
-//       if (i < height - 1) {
-//         variables[i][j]->neighbors[DOWN] = variables[i+1][j];
-//       }
-//       if (j > 0) {
-//         variables[i][j]->neighbors[LEFT] = variables[i][j-1];
-//       }
-//     }
-//   }
-// }

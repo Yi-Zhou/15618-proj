@@ -8,7 +8,7 @@
 #include <fstream>
 
 const float ENERGY = 0.1;
-const float PHI = 0.9;
+const float PHI = 0.3;
 
 enum Direction {
   UP = 0,
@@ -31,8 +31,8 @@ public:
     Vec2<T> normalize() {
         return Vec2(x / (x + y), y / (x + y));
     }
-    float l1_norm(const Vec2<T>& vin) {
-      return std::abs(x - vin.x) + std::abs(y - vin.y);
+    float l1_norm() {
+      return std::abs(x) + std::abs(y);
     }
     static inline T dot(const Vec2<T> & v0, const Vec2<T> & v1)
     {

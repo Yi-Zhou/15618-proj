@@ -114,8 +114,7 @@ public:
                 }
 
                 for (int i = 0; i < 4; i++) {
-                    std::shared_ptr<Variable> neighbor = v->neighbors[i];
-
+                    std::shared_ptr<Variable> neighbor = fg->GetNeighbor(v, i);
                     if (neighbor != nullptr) {
                         Vec2<float> prod = out_msg / v->in_msgs[i];
                         int direction = (i + 2) % 4;
