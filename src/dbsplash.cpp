@@ -1,4 +1,4 @@
-#include <math.h>
+#include <cmath>
 #include <vector>
 #include "fg.h"
 #include "mpi.h"
@@ -41,9 +41,11 @@ public:
   }
 
   void BeliefPropagate() {
-    std::vector<Message> boundary_msgs;
+    std::vector<std::vector<Message>> boundary_msgs(n_procs);
+    std::vector<Message> received_msgs(n_procs);
     std::unordered_map<std::shared_ptr<Variable>> var_updates;
     std::vector<Message> msgs;
+    std::vector<MPI_Request> sent_reqs;
     int n_iters = 0;
     while (TokenRing(pq)) {
       std::shared_ptr<Variable> root = pq.top();
@@ -52,36 +54,23 @@ public:
       std::vector<std::shared_ptr<Variable>>& ordered_variables = 
         ConstructBFSOrdering(root);
 
-      // From the leaves to the root.
+      // From leaves to root.
       for (auto it = ordered_variables.rbegin();
            it != ordered_variables.rend(); ++it) {
         SendMessages(v, boundary_msgs, var_updates);
       }
-      // From the root to the leaves.
+      // From root to leaves.
       for (auto& var: ordered_variables) {
         SendMessages(var, boundary_msgs, var_updates);
       }
 
-      // Try to receive external messages.
-      for (int src = 0; src < n_procs, p++) {
-        if (src == rank) continue; // Ignore itself.
-        MPI_Status status;
-        int flag;
-        MPI_Iprobe(src, MSG_T, MPI_COMM_WORLD, &flag, &status);
-        int count;
-        while (flag) {
-          MPI_Get_count(&status, &count);
-          msgs.resize(count/sizeof(Message))
-          MPI_Recv(&msgs[0], MPI_BYTE, count);
-          for (Message& msg: msgs) {
-            int x = msg.position.x, y = msg.position.y;
-            std::shared_ptr<Variable> var = fg->variables[x][y];
-            float belief_change = var.ReceiveMessage(msg.message, 
-                                                     msg.direction);
-            var_updates[var] += belief_change;
-          }
-          MPI_Iprobe(src, MSG_T, MPI_COMM_WORLD, &flag, &status);
-        }
+      // Update with all received boundary messages.
+      for (Message msg: received_msgs) {
+        int x = msg.position.x, y = msg.position.y;
+        std::shared_ptr<Variable> var = fg->variables[x][y];
+        float belief_change = var.ReceiveMessage(msg.message, 
+                                                 msg.direction);
+        var_updates[var] += belief_change;
       }
 
       // Promote updated variables.
@@ -91,13 +80,28 @@ public:
 
       n_iters += 1;
 
-      // Send external messages every 10 iterations.
+      // Send external messages every x iterations.
       if (n_iters % send_msgs_every == 0) {
         for (int tgt = 0; tgt < n_procs; tgt++) {
-          if (tgt == rank) continue;
-          MPI_
-          msg = msgs[rank];
+          if (tgt == rank) continue; // Ignore itself.
+          msgs = boundary_msgs[rank];
+          MPI_Request req;
+          int count = (int) msgs.size() * sizeof(Message);
+          MPI_Isend(&msgs[0], count, MPI_BYTE, tgt, MPI_COMM_WORLD, &req);
+          sent_reqs.emplace_back(req);
         }
+        // Try to receive external messages.
+        for (int src = 0; src < n_procs, src++) {
+          if (src == rank) continue; // Ignore itself.
+          MPI_Status status;
+          int flag;
+          MPI_Probe(src, MSG_T, MPI_COMM_WORLD, &status);
+          int count;
+          MPI_Get_count(&status, &count);
+          received_msgs.resize(count/sizeof(Message))
+          MPI_Recv(&received_msgs[0], count, MPI_BYTE, src, MSG_T, MPI_COMM_WORLD, &status);
+        }
+        MPI_Waitall(n_procs - 1, sent_reqs, MPI_STATUSES_IGNORE);
       }
 
       // Append root to the end of the priority queue.
@@ -107,13 +111,13 @@ public:
       std::push_heap(pq.begin(), pq.end());
 
       boundary_msgs.clear();
-      updated_vars.clear();
+      var_updates.clear();
     }
   }
 
   void SendMessages(
     std::shared_ptr<Variable> v, 
-    std::vector<Message>& boundary_msgs,
+    std::vector<std::vector<Message>>& boundary_msgs,
     std::unordered_set<std::shared_ptr<Variable>>& updated_vars
   ) {
     // belief.
@@ -140,7 +144,7 @@ public:
         msg.direction = j;
         msg.message = recv_msg;
         msg.position = n->position;
-        boundary_msgs.emplace_back(msg);
+        boundary_msgs[n->partition].emplace_back(msg);
       }
     }
   }
