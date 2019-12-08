@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
     std::vector<float> diff {0.1, 0.3, 0.5, 0.4, 0.2, 0.8, 0.9, 0.6};
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    printf("max difference %f\n", max_diff(diff[rank]));
+    // printf("max difference %f\n", max_diff(diff[rank]));
     MPI_Finalize();
     // Image& img = ReadImage(image);
     // std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img);

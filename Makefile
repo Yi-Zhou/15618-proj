@@ -26,7 +26,7 @@ CXX = mpic++
 all: $(TARGETBIN)
 
 SYNCSOURCES := src/synchronous.cpp src/fg.cpp src/common.cpp
-SYNCHEADERS := src/fg.h src/common.h
+SYNCHEADERS := src/fg.h src/common.h src/timing.h
 SYNCBIN := $(OUTPUTDIR)/synchronous
 
 sync: $(SYNCBIN)

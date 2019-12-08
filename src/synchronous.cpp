@@ -1,8 +1,8 @@
+#include <cassert>
 #include "common.h"
 #include "fg.h"
 #include "mpi.h"
-#include <cassert>
-
+#include "timing.h"
 
 #define SIZE_TAG 1
 #define DATA_TAG 2
@@ -131,8 +131,8 @@ public:
     bool beliefPropagate() {
         std::vector<bool> neighbor_procs_set(n_procs, false);
 
-        int tag1 = 1; // transmit a size
-        int tag2 = 2; // transmit messages
+        int tag1 = SIZE_TAG; // transmit a size
+        int tag2 = DATA_TAG; // transmit messages
         std::vector<MPI_Request> size_reqs;
         std::vector<MPI_Request> msg_reqs;
 
@@ -153,7 +153,6 @@ public:
                 } else {
                     // messages from different partitions, i.e., processes
                     int size = out_messages[i].size();
-                    // to decide tag
                     MPI_Request size_req, msg_req;
                     Message msg = out_messages[i][0];
                     //printf("sending msg (%f, %f) to (%d, %d) from direction %d from rank %d to i %d\n", 
@@ -223,8 +222,8 @@ public:
     }
 
 private:
+    // tested in toy_test
     bool is_converged(float diff) {
-        // tested in toy_test
         MPI_Request req;
         int tag1 = 1;
 
@@ -242,7 +241,7 @@ private:
             diff = std::max(other_max_diff, diff);
         }
 
-        printf("max diff %f rank %d\n", diff, rank);
+        // printf("max diff %f rank %d\n", diff, rank);
         return diff < beta;
     }
 };
@@ -261,11 +260,14 @@ int main(int argc, char *argv[]) {
     // Image& img = ReadImage(image);
 
     Image img = Image::ReadImage("data/rice.txt");
-    printf("img %lu %lu\n", img.pixels.size(), img.pixels[0].size());
+    // printf("img %lu %lu\n", img.pixels.size(), img.pixels[0].size());
     std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels, "data/256_256_8.txt");
     SynchronousBeliefPropagator bp(fg);
 
     int i = 0;
+
+    Timer t;
+    t.reset();
     while (!bp.beliefPropagate()) {
         if (i == 50) {
             printf("Run 50 iterations but still not converged!\n");
@@ -275,6 +277,8 @@ int main(int argc, char *argv[]) {
     }
 
     if (i < 50) {
+        double elapsed = t.elapsed();
+        printf("Converged in %.6fms\n", elapsed);
         printf("Converged after %d iterations!\n", i);
     }
 
