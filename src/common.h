@@ -7,9 +7,6 @@
 #include <vector>
 #include <fstream>
 
-const float ENERGY = 0.1;
-const float PHI = 0.3;
-
 enum Direction {
   UP = 0,
   RIGHT,
@@ -131,7 +128,6 @@ public:
   //   this->pixels[(i * this->w) + j] = color;
   // }
   void SaveToFile(const char * filename);
-private:
   Image(std::vector<std::vector<int>>& pixels) {
     this->pixels = pixels;
     this->w = pixels.size();

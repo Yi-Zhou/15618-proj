@@ -3,6 +3,7 @@
 Variable::Variable(int x, int y, int color) {
   // Colors: 0-Black | 1-White.
   //TODO: remove redundant variable ?
+  color = !color;
   position = Vec2<int>(x, y);
 
   in_msgs[4] = Vec2<float>(color? ENERGY:1.0, color? 1.0:ENERGY);
@@ -27,9 +28,10 @@ Vec2<float> Variable::calulateBelief() {
 
 float Variable::ReceiveMessage(Vec2<float>& msg, int direction) {
   Vec2<float> new_belief = belief / in_msgs[direction] * msg;
+  Vec2<float> belief_change = new_belief - belief;
   belief = new_belief;
   in_msgs[direction] = msg;
-  return (new_belief - belief).l1_norm();
+  return belief_change.l1_norm();
 }
 
 FactorGraph::FactorGraph(std::vector<std::vector<int>>& img, const char *partitionFile) {

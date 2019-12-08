@@ -86,22 +86,24 @@ public:
               TOKEN_T, MPI_COMM_WORLD, &token_recv_req);
     while (TokenRing(pq)) {
 
-      printf("Process %d iter %d\n", rank, n_iters);
-      std::shared_ptr<Variable> root = pq[0];
-      if (root->residual > converge_threshold) {
+      std::shared_ptr<Variable> root = GetNextVariable();
 
-        // Grow a spanning tree.
-        const std::vector<std::shared_ptr<Variable>>& ordered_variables = 
-          ConstructBFSOrdering(root);
+      if (root != nullptr) {
+        if (root->residual > converge_threshold) {
 
-        // From leaves to root.
-        for (auto it = ordered_variables.rbegin();
-             it != ordered_variables.rend(); ++it) {
-          SendMessages(*it, boundary_msgs, var_updates);
-        }
-        // From root to leaves.
-        for (auto& var: ordered_variables) {
-          SendMessages(var, boundary_msgs, var_updates);
+          // Grow a spanning tree.
+          const std::vector<std::shared_ptr<Variable>>& ordered_variables = 
+            ConstructBFSOrdering(root);
+
+          // From leaves to root.
+          for (auto it = ordered_variables.rbegin();
+               it != ordered_variables.rend(); ++it) {
+            SendMessages(*it, boundary_msgs, var_updates);
+          }
+          // From root to leaves.
+          for (auto& var: ordered_variables) {
+            SendMessages(var, boundary_msgs, var_updates);
+          }
         }
       }
 
@@ -134,10 +136,12 @@ public:
       }
       received_msgs.clear();
 
-      // Promote updated variables.
+      // Promote updated variables except the root.
       for (auto it = var_updates.begin(); it != var_updates.end(); ++it) {
+        if (it->first == root) continue;
         Promote(it->first, it->second);
       }
+
 
       n_iters += 1;
 
@@ -166,8 +170,22 @@ public:
       }
 
       // Append root to the end of the priority queue.
-      std::pop_heap(pq.begin(), pq.end());
-      root->residual = 0.0;
+      if (root != nullptr) {
+        root->residual = 0.0;
+        pq.push_back(root);
+        idx_map[root] = ((int) pq.size()) - 1;
+      }
+      if (root == nullptr) {
+        // printf("Process %d has converged, waiting for messages from others.\n", rank);
+      }
+      /*
+        printf("End: Process %d iter %d variable (%d %d)\n", rank, n_iters, root->position.x, root->position.y);
+        for (auto var: pq) {
+         printf("(%d %d %f)", var->position.x, var->position.y, var->residual);
+        }
+        printf("\n");
+      }
+      */
 
       for (auto& msgs: boundary_msgs) {
         msgs.clear();
@@ -198,9 +216,9 @@ public:
         token.m = END_SIGNAL;
         for (int tgt = 0; tgt < n_procs; tgt++) {
           if (tgt == rank) continue;
-          printf("Process %d send end signal to Process %d\n", rank, (rank + 1) % n_procs);
-          MPI_Send(&token, sizeof(Token), MPI_BYTE, (rank + 1) % n_procs, 
-                   TOKEN_T, MPI_COMM_WORLD);
+          printf("Process %d send end signal to Process %d\n", rank, tgt);
+          MPI_Send(&token, sizeof(Token), MPI_BYTE, tgt, TOKEN_T, 
+                   MPI_COMM_WORLD);
         }
         return false;
       }
@@ -363,18 +381,54 @@ private:
     return ordered_variables;
   }
 
+  std::shared_ptr<Variable> GetNextVariable() {
+    std::shared_ptr<Variable> root = pq[0];
+    if (root->residual <= converge_threshold) return nullptr;
+    std::shared_ptr<Variable> var = pq.back();
+    pq[0] = var;
+    pq.pop_back();
+    idx_map.erase(root);
+    idx_map[var] = 0;
+    int cur_idx = 0;
+    int heap_size = (int) pq.size();
+    while (cur_idx < heap_size) {
+      std::shared_ptr<Variable> largest = var;
+      int largest_idx = cur_idx;
+      int left_idx = (cur_idx << 1) + 1;
+      int right_idx = (cur_idx << 1) + 2;
+      if (left_idx < heap_size && (*pq[left_idx]) > (*largest)) {
+        largest = pq[left_idx];
+        largest_idx = left_idx;
+      }
+      if (right_idx < heap_size && (*pq[right_idx]) > (*largest)) {
+        largest = pq[right_idx];
+        largest_idx = right_idx;
+      }
+      if (largest_idx == cur_idx) break;
+      std::iter_swap(pq.begin() + cur_idx, pq.begin() + largest_idx);
+      /*
+      if (rank == 1) 
+        printf("Swapping (%d | %d %d) (%d | %d %d)\n", cur_idx, var->position.x, var->position.y, largest_idx, largest->position.x, largest->position.y);
+      */
+      idx_map[var] = idx_map[largest];
+      idx_map[largest] = cur_idx;
+      cur_idx = largest_idx;
+    }
+    return root;
+  }
+
   void Promote(std::shared_ptr<Variable> var, float belief_change) {
     var->residual += belief_change;
+
     int idx = idx_map[var];
     while (idx != 0) {
       int p_idx = (idx - 1) >> 1;
       std::shared_ptr<Variable> parent = pq[p_idx];
-      if (parent >= var) break;
+      if ((*parent) >= (*var)) break;
       // Swap parent and var.
       std::iter_swap(pq.begin() + idx, pq.begin() + p_idx);
-      int tmp = idx_map[parent];
-      idx_map[parent] = idx_map[var];
-      idx_map[var] = tmp;
+      idx_map[parent] = idx;
+      idx_map[var] = p_idx;
       idx = p_idx;
     }
   }
@@ -421,17 +475,51 @@ int main(int argc, char *argv[]) {
   printf("Program start.\n");
   MPI_Init(&argc, &argv);
   Image img = Image::ReadImage("data/rice.txt");
+  /*
+  std::vector<std::vector<int>> img_vec{{1, 1, 1, 1, 1, 1, 1, 1}, 
+                                        {1, 1, 1, 1, 1, 1, 1, 1},
+                                        {1, 0, 1, 1, 1, 0, 1, 1},
+                                        {1, 1, 1, 1, 1, 1, 1, 1},
+                                        {1, 1, 1, 0, 1, 1, 1, 1},
+                                        {1, 1, 1, 1, 1, 1, 1, 1},
+                                        {1, 1, 1, 1, 1, 0, 1, 1},
+                                        {1, 1, 1, 1, 1, 1, 1, 1},
+                                        };
+  */
+  /*
+  std::vector<std::vector<int>> img_vec{{1, 1, 1, 1},
+                                        {1, 1, 1, 1},
+                                        {1, 0, 1, 1},
+                                        {1, 1, 1, 1},
+                                        };
+  */
+  // img = Image(img_vec);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels);
   DistributedBeliefPropagator dbp(fg, 2);
   dbp.BeliefPropagate();
   std::vector<Message> beliefs = dbp.Merge();
-  for (Message& b: beliefs) {
-    img.pixels[b.position.x][b.position.y] = b.message.x > b.message.y ? 0 : 1;
-  }
-  img.SaveToFile("output/denoised_rice.bmp");
+  Vec2<float> bs[img.h][img.w];
+  printf("Process %d: n_iters: %d\n", rank, dbp.n_iters);
   if (rank == 0) {
+    for (int i = 0; i < img.h; i++) {
+      for (int j = 0; j < img.w; j++) {
+        bs[i][j] = {-1.0, -1.0};
+      }
+    }
+    for (Message& b: beliefs) {
+      img.pixels[b.position.x][b.position.y] = b.message.x > b.message.y ? 0 : 1;
+      bs[b.position.x][b.position.y] = b.message;
+    }
+    printf("----- Beliefs -----\n");
+    for (int i = 0; i < img.h; i++) {
+      for (int j = 0; j < img.w; j++) {
+        //printf("(%f %f r %f) ", bs[i][j].x, bs[i][j].y, fg->variables[i][j]->residual);
+      }
+      //printf("\n");
+    }
+    img.SaveToFile("output/denoised_rice.bmp");
     FactorGraph::writeDenoisedImage(beliefs, "output/denoised_rice.txt");
     for (Message m : beliefs) {
       Vec2<float> norm_b = m.message.normalize();

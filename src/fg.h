@@ -7,6 +7,9 @@
 #include <limits>
 #include "common.h"
 
+const float ENERGY = 0.1;
+const float PHI = 0.3;
+
 struct Message {
   Vec2<float> message;
   Vec2<int> position;
