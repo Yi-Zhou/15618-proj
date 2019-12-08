@@ -8,6 +8,7 @@
 #include "mpi.h"
 #include "common.h"
 #include "mpi.h"
+#include "timing.h"
 
 #define MSG_T 0
 #define TOKEN_T 1
@@ -48,7 +49,7 @@ public:
   std::vector<std::shared_ptr<Variable>> pq;
   std::unordered_map<std::shared_ptr<Variable>, int> idx_map;
   int rank, n_procs;
-  int send_msgs_every = 1;
+  int send_msgs_every = 10;
   Token token;
   Token token_recv_buf;
   Token token_send_buf;
@@ -175,10 +176,10 @@ public:
         pq.push_back(root);
         idx_map[root] = ((int) pq.size()) - 1;
       }
-      if (root == nullptr) {
-        // printf("Process %d has converged, waiting for messages from others.\n", rank);
-      }
       /*
+      if (root == nullptr) {
+        printf("Process %d has converged, waiting for messages from others.\n", rank);
+      }
         printf("End: Process %d iter %d variable (%d %d)\n", rank, n_iters, root->position.x, root->position.y);
         for (auto var: pq) {
          printf("(%d %d %f)", var->position.x, var->position.y, var->residual);
@@ -192,13 +193,13 @@ public:
       }
       var_updates.clear();
     }
-    printf("Waiting for all remaining sent_reqs.\n");
+    // printf("Waiting for all remaining sent_reqs.\n");
     std::vector<MPI_Request> reqs;
     while (!sent_reqs.empty()) {
       reqs.push_back(sent_reqs.front());
     }
     MPI_Waitall(reqs.size(), &reqs[0], MPI_STATUSES_IGNORE);
-    printf("Process %d finished.\n", rank);
+    // printf("Process %d finished.\n", rank);
   }
 
   bool TokenRing(std::vector<std::shared_ptr<Variable>>& pq) {
@@ -216,7 +217,7 @@ public:
         token.m = END_SIGNAL;
         for (int tgt = 0; tgt < n_procs; tgt++) {
           if (tgt == rank) continue;
-          printf("Process %d send end signal to Process %d\n", rank, tgt);
+          // printf("Process %d send end signal to Process %d\n", rank, tgt);
           MPI_Send(&token, sizeof(Token), MPI_BYTE, tgt, TOKEN_T, 
                    MPI_COMM_WORLD);
         }
@@ -497,8 +498,15 @@ int main(int argc, char *argv[]) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels);
-  DistributedBeliefPropagator dbp(fg, 2);
+  DistributedBeliefPropagator dbp(fg, 1);
+
+  Timer t;
+  t.reset();
   dbp.BeliefPropagate();
+  double elapsed = t.elapsed();
+  printf("Converged in %.6fms\n", elapsed);
+  printf("Converged after %d iterations!\n", dbp.n_iters);
+
   std::vector<Message> beliefs = dbp.Merge();
   Vec2<float> bs[img.h][img.w];
   printf("Process %d: n_iters: %d\n", rank, dbp.n_iters);
