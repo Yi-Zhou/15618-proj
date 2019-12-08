@@ -25,10 +25,10 @@ Vec2<float> Variable::calulateBelief() {
   return belief;
 }
 
-void Variable::ReceiveMessage(Vec2<float>& msg, int direction) {
-  Vec2<float> new_belief = belief / in_msg[j] * msg;
+float Variable::ReceiveMessage(Vec2<float>& msg, int direction) {
+  Vec2<float> new_belief = belief / in_msgs[direction] * msg;
   belief = new_belief;
-  in_msg[j] = msg;
+  in_msgs[direction] = msg;
   return (new_belief - belief).l1_norm();
 }
 
@@ -44,13 +44,28 @@ FactorGraph::FactorGraph(std::vector<std::vector<int>>& img, const char *partiti
     for (int j = 0; j < width; j++) {
       std::string line;
       std::getline(inFile, line);
-      // std::shared_ptr<Attribute> var = std::make_shared<Variable>(i, j, 
-      //                                                             image[i][j]);
       std::shared_ptr<Variable> var = std::make_shared<Variable>(Variable(i, j, img[i][j]));
       //TODO: remove this line
       //var->partition = 2 * (i / 2) + j / 4;
       var->partition = std::stoi(line);
       //var->partition = i * width + j;
+      variables[i].push_back(var);
+    }
+  }
+}
+
+FactorGraph::FactorGraph(std::vector<std::vector<int>>& img) {
+  // img is a 2-d matrix
+  width = img[0].size();
+  height = img.size();
+  variables.resize(width);
+
+  for (int i = 0; i < height; i++) {
+    variables.push_back(std::vector<std::shared_ptr<Variable>>());
+    for (int j = 0; j < width; j++) {
+      std::string line;
+      std::shared_ptr<Variable> var = std::make_shared<Variable>(
+        Variable(i, j, img[i][j]));
       variables[i].push_back(var);
     }
   }
@@ -63,7 +78,9 @@ std::shared_ptr<Variable> FactorGraph::GetVariable(int i, int j) {
   return std::shared_ptr<Variable>(nullptr);
 }
 
-std::shared_ptr<Variable> FactorGraph::GetNeighbor(std::shared_ptr<Variable> var, int direction) {
+std::shared_ptr<Variable> FactorGraph::GetNeighbor(std::shared_ptr<Variable> v, 
+                                                   int direction) {
+  int ni, nj;
   if (direction == 0) {
     ni = v->position.x;
     nj = v->position.y - 1;

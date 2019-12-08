@@ -91,7 +91,7 @@ public:
             Vec2<float> old_message = v->in_msgs[msg.direction];
             Vec2<float> diff = old_message - msg.message;
             //TODO: check whether normalizing in this way is correct or not
-            max_diff = std::max(old_message.l1_norm(msg.message), max_diff);
+            max_diff = std::max((old_message - msg.message).l1_norm(), max_diff);
 
             v->in_msgs[msg.direction] = msg.message;
         }

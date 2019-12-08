@@ -26,7 +26,7 @@ public:
   Variable(int x, int y, int color); 
   Vec2<float> calulateBelief();
 
-  void ReceiveMessage(Vec2<float>& msg, int direction);
+  float ReceiveMessage(Vec2<float>& msg, int direction);
 
   bool operator < (Variable& var) {
     return residual < var.residual;
@@ -53,7 +53,7 @@ class FactorGraph {
 public:
   int width, height;
   std::vector<std::vector<std::shared_ptr<Variable>>> variables;
-  FactorGraph(Image& img);
+  FactorGraph(std::vector<std::vector<int>>& img);
   FactorGraph(std::vector<std::vector<int>>& img, const char* partitionFile);
   std::shared_ptr<Variable> GetVariable(int i, int j);
   std::shared_ptr<Variable> GetNeighbor(std::shared_ptr<Variable> var, int direction);
