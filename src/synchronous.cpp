@@ -256,6 +256,7 @@ private:
     }
 };
 
+/*
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
     // std::vector<std::vector<int>> img{{1, 1, 1, 1, 1, 1, 1, 1}, 
@@ -298,6 +299,5 @@ int main(int argc, char *argv[]) {
     // bp.merge(); TODO: calculate beliefs and merge the beliefs
         // check if converged
 }
-
-
+*/
 

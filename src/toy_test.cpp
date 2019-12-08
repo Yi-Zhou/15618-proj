@@ -30,6 +30,7 @@ float max_diff(float diff) {
 }
 
 
+/*
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
     std::vector<float> diff {0.1, 0.3, 0.5, 0.4, 0.2, 0.8, 0.9, 0.6};
@@ -46,3 +47,4 @@ int main(int argc, char *argv[]) {
     // bp.merge(); TODO: calculate beliefs and merge the beliefs
         // check if converged
 }
+*/

@@ -1,3 +1,4 @@
+#include <cassert>
 #include <cmath>
 #include <vector>
 #include <unordered_map>
@@ -61,6 +62,7 @@ public:
 
   DistributedBeliefPropagator(std::shared_ptr<FactorGraph> fg, int bfs_depth) 
     : fg(fg) {
+    this->bfs_depth = bfs_depth;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     if (rank == 0) token.m = 0;
@@ -84,6 +86,7 @@ public:
               TOKEN_T, MPI_COMM_WORLD, &token_recv_req);
     while (TokenRing(pq)) {
 
+      printf("Process %d iter %d\n", rank, n_iters);
       std::shared_ptr<Variable> root = pq[0];
       if (root->residual > converge_threshold) {
 
@@ -181,28 +184,6 @@ public:
   }
 
   bool TokenRing(std::vector<std::shared_ptr<Variable>>& pq) {
-    // If the token has passed 2 rounds, send END_SIGNAL to every one.
-    // Calculate the token given the current token.
-    /*
-    if (token >= 0) {
-      if (pq.top().residual > converge_threshold) {
-        // Reset the token if the processor holds it has not converged.
-        if (token > 0) token = 0;
-      } else {
-        token += 1;
-      }
-      MPI_Irecv(&token_recv_buf, 1, sizeof(MPI_INT), MPI_ANY_SOURCE,
-                TOKEN_T, &token_recv_req, MPI_COMM_WORLD);
-      MPI_Send(&token, 1, MPI_INT, (rank + 1) % n_procs, 1, 
-               sizeof(MPI_INT), MPI_COMM_WORLD);
-      MPI_Wait(&token_recv_req, MPI_STATUS_IGNORE);
-      token = token_recv_buf;
-      if (token == n_procs * 2) {
-        
-      }
-    }
-    */
-
     int flag;
     // Check for token receipt.
     MPI_Test(&token_recv_req, &flag, MPI_STATUS_IGNORE);
@@ -248,6 +229,28 @@ public:
       token.m = -1;
     }
     return true;
+    // If the token has passed 2 rounds, send END_SIGNAL to every one.
+    // Calculate the token given the current token.
+    /*
+    if (token >= 0) {
+      if (pq.top().residual > converge_threshold) {
+        // Reset the token if the processor holds it has not converged.
+        if (token > 0) token = 0;
+      } else {
+        token += 1;
+      }
+      MPI_Irecv(&token_recv_buf, 1, sizeof(MPI_INT), MPI_ANY_SOURCE,
+                TOKEN_T, &token_recv_req, MPI_COMM_WORLD);
+      MPI_Send(&token, 1, MPI_INT, (rank + 1) % n_procs, 1, 
+               sizeof(MPI_INT), MPI_COMM_WORLD);
+      MPI_Wait(&token_recv_req, MPI_STATUS_IGNORE);
+      token = token_recv_buf;
+      if (token == n_procs * 2) {
+        
+      }
+    }
+    */
+
   }
 
   void SendMessages(
@@ -267,6 +270,7 @@ public:
       ).normalize();
       int j = opposite(i);
       std::shared_ptr<Variable> n = fg->GetNeighbor(v, i);
+      if (n == nullptr) continue;
       if (n->partition == rank) {
         // If the receiver is in the same partition,
         // directly update the in_msg.
@@ -323,6 +327,7 @@ public:
       //printf("receiving normalized belief for v(%d, %d) is (%f, %f)\n", msg.position.x, msg.position.y,
       // msg.message.x, msg.message.y);
     }
+    assert(beliefs.size() == fg->width * fg->height);
     return beliefs;
     // first calculate beliefs
   }
@@ -334,21 +339,23 @@ private:
       std::shared_ptr<Variable> v) {
     std::vector<std::shared_ptr<Variable>> ordered_variables;
     std::unordered_set<int> visited;
-    std::queue<std::shared_ptr<Variable>> q;
-    q.push(v);
-    int h = bfs_depth;
-    while (!q.empty() && h-- > 0) {
-      std::shared_ptr<Variable> v = q.front();
+    std::queue<std::pair<std::shared_ptr<Variable>, int>> q;
+    q.push(std::make_pair(v, 0));
+    visited.insert(flatten(v->position, fg->width));
+    while (!q.empty()) {
+      auto& vh = q.front();
+      auto v = vh.first;
+      int h = vh.second;
       q.pop();
       ordered_variables.push_back(v);
-      visited.insert(flatten(v->position, fg->width));
-      for (int i = 0; i < 4; i++) {
+      for (int i = 0; i < 4 && h < bfs_depth; i++) {
         std::shared_ptr<Variable> n = fg->GetNeighbor(v, i);
         if (n == nullptr) continue;
         int cord = flatten(n->position, fg->width);
-        if (visited.find(cord) != visited.end()) {
+        if (visited.find(cord) == visited.end()) {
           if (n->partition == rank && n->residual > converge_threshold) {
-            q.push(n);
+            q.push(std::make_pair(n, h + 1));
+            visited.insert(flatten(n->position, fg->width));
           }
         }
       }
@@ -375,7 +382,6 @@ private:
   void Partition(std::shared_ptr<FactorGraph> fg) {
     // Assume that # processes is a power of 2.
     // std::srand(15618);
-    int rank, n_procs;
     int targetlevel = 0;
     int _n_procs = n_procs;
     int power = 0;
@@ -383,10 +389,8 @@ private:
       power++;
     }
     int div_c = (int) sqrt(n_procs);
-    int div_r = div_c;
-    if (power % 1) {
-      div_r <<= 1;
-    }
+    int div_r = n_procs / div_c;
+
     int blk_rs = updiv(fg->height, div_r);
     int blk_cs = updiv(fg->width, div_c);
 
@@ -399,7 +403,7 @@ private:
     for (int i = 0; i < fg->height; i++) {
       for (int j = 0; j < fg->width; j++) {
         std::shared_ptr<Variable> var = fg->variables[i][j];
-        int proc_id = part_id_to_process[i / blk_rs * blk_cs + j / blk_cs];
+        int proc_id = part_id_to_process[i / blk_rs * div_c + j / blk_cs];
         var->partition = proc_id;
         if (proc_id == rank) {
           // Add variables to the priority queue.
@@ -407,7 +411,6 @@ private:
         }
       }
     }
-    std::make_heap(pq.begin(), pq.end(), deref_cmp());
     for (int idx = 0; idx < (int) pq.size(); idx++) {
       idx_map[pq[idx]] = idx;
     }
@@ -415,6 +418,7 @@ private:
 };
 
 int main(int argc, char *argv[]) {
+  printf("Program start.\n");
   MPI_Init(&argc, &argv);
   Image img = Image::ReadImage("data/rice.txt");
   int rank;
@@ -423,12 +427,16 @@ int main(int argc, char *argv[]) {
   DistributedBeliefPropagator dbp(fg, 2);
   dbp.BeliefPropagate();
   std::vector<Message> beliefs = dbp.Merge();
+  for (Message& b: beliefs) {
+    img.pixels[b.position.x][b.position.y] = b.message.x > b.message.y ? 0 : 1;
+  }
+  img.SaveToFile("output/denoised_rice.bmp");
   if (rank == 0) {
     FactorGraph::writeDenoisedImage(beliefs, "output/denoised_rice.txt");
     for (Message m : beliefs) {
       Vec2<float> norm_b = m.message.normalize();
-      printf("normalized belief for v(%d, %d) is (%f, %f)\n", m.position.x, m.position.y,
-      norm_b.x, norm_b.y);
+      // printf("normalized belief for v(%d, %d) is (%f, %f)\n", m.position.x, m.position.y,
+      // norm_b.x, norm_b.y);
     }
   }
   MPI_Finalize();

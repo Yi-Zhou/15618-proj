@@ -13,7 +13,8 @@ else
 CFLAGS += -O3
 endif
 
-SOURCES := src/*.cpp
+# SOURCES := src/*.cpp
+SOURCES = $(filter-out src/partition.cpp, $(wildcard src/*.cpp))
 HEADERS := src/*.h
 
 TARGETBIN := bp-$(CONFIGURATION)
