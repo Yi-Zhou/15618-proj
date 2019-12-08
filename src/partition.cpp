@@ -68,7 +68,7 @@ public:
         idx_t total_nodes = width * height;
         idx_t edges = (width - 1) * (height - 1) * 2 + width - 1 + height - 1;
         idx_t n_weights  = 1;
-        //may not compile
+
         idx_t objval;
         idx_t xadj[total_nodes + 1];
         idx_t adjncy[2 * edges];

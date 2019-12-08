@@ -107,8 +107,6 @@ void FactorGraph::writeDenoisedImage(std::vector<Message>& beliefs, const char* 
 
     for (Message m : beliefs) {
         Vec2<float> norm_b = m.message.normalize();
-        // printf("normalized belief for v(%d, %d) is (%f, %f)\n", m.position.x, m.position.y,
-        // norm_b.x, norm_b.y);
         int color = norm_b.x > norm_b.y ? 0 : 1;
 
         outFile << m.position.x << " " << m.position.y << " " << color << std::endl;

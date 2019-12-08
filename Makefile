@@ -1,4 +1,4 @@
-OUTPUTDIR := bin/
+OUTPUTDIR := build
 
 #-std=c++14
 CFLAGS := -std=c++11 -fvisibility=hidden -lpthread
@@ -26,14 +26,22 @@ CXX = mpic++
 
 all: $(TARGETBIN)
 
+SYNCSOURCES := src/synchronous.cpp src/fg.cpp src/common.cpp
+SYNCHEADERS := src/fg.h src/common.h src/timing.h
+SYNCBIN := $(OUTPUTDIR)/synchronous
+
+sync: $(SYNCBIN)
+$(SYNCBIN) : $(SYNCSOURCES) $(SYNCHEADERS)
+	$(CXX) -o $@ $(CFLAGS) $(SYNCSOURCES)
+
 $(TARGETBIN): $(SOURCES) $(HEADERS)
 	$(CXX) -o $@ $(CFLAGS) $(SOURCES)
 
 clean:
-	rm -rf ./bp-$(CONFIGURATION)
+	rm -rf $(OUTPUTDIR)/*
 
-FILES = src/*.cpp \
-		src/*.h
+# FILES = src/*.cpp \
+# 		src/*.h
 
-handin.tar: $(FILES)
-	tar cvf handin.tar $(FILES)
+# handin.tar: $(FILES)
+# 	tar cvf handin.tar $(FILES)
