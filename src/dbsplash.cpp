@@ -3,6 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <algorithm>
 #include <queue>
 #include "fg.h"
 #include "mpi.h"
@@ -53,6 +54,7 @@ public:
   Token token;
   Token token_recv_buf;
   Token token_send_buf;
+  const int over_partition_factor = 2;
   int n_iters = 0;
   float converge_threshold = 1e-5;
   MPI_Request token_recv_req;
@@ -194,11 +196,13 @@ public:
       var_updates.clear();
     }
     // printf("Waiting for all remaining sent_reqs.\n");
+    /*
     std::vector<MPI_Request> reqs;
     while (!sent_reqs.empty()) {
       reqs.push_back(sent_reqs.front());
     }
     MPI_Waitall(reqs.size(), &reqs[0], MPI_STATUSES_IGNORE);
+    */
     // printf("Process %d finished.\n", rank);
   }
 
@@ -228,7 +232,7 @@ public:
     }
 
     // If the process has not converged yet, continue iterations.
-    if (pq[0]->residual > converge_threshold) {
+    if (!pq.empty() && pq[0]->residual > converge_threshold) {
       // Reset the token if the processor holds it.
       if (token.m > 0) token.m = 0;
       return true;
@@ -383,6 +387,7 @@ private:
   }
 
   std::shared_ptr<Variable> GetNextVariable() {
+    if (pq.empty()) return nullptr;
     std::shared_ptr<Variable> root = pq[0];
     if (root->residual <= converge_threshold) return nullptr;
     std::shared_ptr<Variable> var = pq.back();
@@ -436,25 +441,32 @@ private:
 
   void Partition(std::shared_ptr<FactorGraph> fg) {
     // Assume that # processes is a power of 2.
-    // std::srand(15618);
+    std::srand(15618);
     int targetlevel = 0;
     int _n_procs = n_procs;
     int power = 0;
     while (_n_procs >>= 1) {
       power++;
     }
-    int div_c = (int) sqrt(n_procs);
-    int div_r = n_procs / div_c;
+    int div_c;
+    if (power % 2 == 0) {
+      div_c = (int) sqrt(n_procs);
+    }
+    else {
+      div_c = (int) sqrt(n_procs >> 1);
+    }
+    int n_parts = n_procs * over_partition_factor;
+    int div_r = n_parts / div_c;
 
     int blk_rs = updiv(fg->height, div_r);
     int blk_cs = updiv(fg->width, div_c);
 
-    int num_parts = n_procs;
     std::vector<int> part_id_to_process;
-    for (int i = 0; i < num_parts; i++) {
+    for (int i = 0; i < n_parts; i++) {
       part_id_to_process.push_back(i % n_procs);
-    }
-    // std::random_shuffle(part_id_to_process); // For over-partitioning.
+    } 
+    // For over-partitioning.
+    std::random_shuffle(part_id_to_process.begin(), part_id_to_process.end());
     for (int i = 0; i < fg->height; i++) {
       for (int j = 0; j < fg->width; j++) {
         std::shared_ptr<Variable> var = fg->variables[i][j];
@@ -469,6 +481,7 @@ private:
     for (int idx = 0; idx < (int) pq.size(); idx++) {
       idx_map[pq[idx]] = idx;
     }
+    printf("Process %d: I have %d variables\n", rank, (int) pq.size());
   }
 };
 
@@ -498,7 +511,7 @@ int main(int argc, char *argv[]) {
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels);
-  DistributedBeliefPropagator dbp(fg, 1);
+  DistributedBeliefPropagator dbp(fg, 2);
 
   Timer t;
   t.reset();
