@@ -32,12 +32,12 @@ Image Image::ReadImage(const char* imgFile)
 }
 
 
+/* 
+This function is NOT our work. Copied/Modified from 
+https://stackoverflow.com/questions/2654480/writing-bmp-image-in-pure-c-c-without-other-libraries 
+See deusmacabre's answer.
+*/
 void Image::SaveToFile(const char * filename) {
-  /* 
-  NOT OUR WORK. Copied/Modified from 
-  https://stackoverflow.com/questions/2654480/writing-bmp-image-in-pure-c-c-without-other-libraries 
-  See deusmacabre's answer.
-  */
 
   FILE *f;
   unsigned char *img = NULL;

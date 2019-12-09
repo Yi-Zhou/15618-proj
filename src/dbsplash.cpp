@@ -120,7 +120,7 @@ public:
         if (src == rank) continue; // Ignore itself.
         MPI_Status status;
         int flag;
-        // Get # messages before receiving them.
+        // Get message count before receiving them.
         MPI_Iprobe(src, MSG_T, MPI_COMM_WORLD, &flag, &status);
         if (flag) {
           int count;
@@ -182,24 +182,12 @@ public:
         pq.push_back(root);
         idx_map[root] = ((int) pq.size()) - 1;
       }
-      /*
-      if (root == nullptr) {
-        printf("Process %d has converged, waiting for messages from others.\n", rank);
-      }
-        printf("End: Process %d iter %d variable (%d %d)\n", rank, n_iters, root->position.x, root->position.y);
-        for (auto var: pq) {
-         printf("(%d %d %f)", var->position.x, var->position.y, var->residual);
-        }
-        printf("\n");
-      }
-      */
 
       for (auto& msgs: boundary_msgs) {
         msgs.clear();
       }
       var_updates.clear();
     }
-    // printf("Waiting for all remaining sent_reqs.\n");
     /*
     std::vector<MPI_Request> reqs;
     while (!sent_reqs.empty()) {
@@ -207,7 +195,6 @@ public:
     }
     MPI_Waitall(reqs.size(), &reqs[0], MPI_STATUSES_IGNORE);
     */
-    // printf("Process %d finished.\n", rank);
   }
 
   bool TokenRing(std::vector<std::shared_ptr<Variable>>& pq) {
@@ -258,26 +245,6 @@ public:
     return true;
     // If the token has passed 2 rounds, send END_SIGNAL to every one.
     // Calculate the token given the current token.
-    /*
-    if (token >= 0) {
-      if (pq.top().residual > converge_threshold) {
-        // Reset the token if the processor holds it has not converged.
-        if (token > 0) token = 0;
-      } else {
-        token += 1;
-      }
-      MPI_Irecv(&token_recv_buf, 1, sizeof(MPI_INT), MPI_ANY_SOURCE,
-                TOKEN_T, &token_recv_req, MPI_COMM_WORLD);
-      MPI_Send(&token, 1, MPI_INT, (rank + 1) % n_procs, 1, 
-               sizeof(MPI_INT), MPI_COMM_WORLD);
-      MPI_Wait(&token_recv_req, MPI_STATUS_IGNORE);
-      token = token_recv_buf;
-      if (token == n_procs * 2) {
-        
-      }
-    }
-    */
-
   }
 
   void SendMessages(
@@ -398,10 +365,6 @@ private:
       }
       if (largest_idx == cur_idx) break;
       std::iter_swap(pq.begin() + cur_idx, pq.begin() + largest_idx);
-      /*
-      if (rank == 1) 
-        printf("Swapping (%d | %d %d) (%d | %d %d)\n", cur_idx, var->position.x, var->position.y, largest_idx, largest->position.x, largest->position.y);
-      */
       idx_map[var] = idx_map[largest];
       idx_map[largest] = cur_idx;
       cur_idx = largest_idx;
@@ -483,25 +446,6 @@ int main(int argc, char *argv[]) {
   const char * filename = "data/noisy_fractal_triangles.txt";
   const char * output_path = "output/denoised_fractal_triangles.bmp";
   Image img = Image::ReadImage(filename);
-  /*
-  std::vector<std::vector<int>> img_vec{{1, 1, 1, 1, 1, 1, 1, 1}, 
-                                        {1, 1, 1, 1, 1, 1, 1, 1},
-                                        {1, 0, 1, 1, 1, 0, 1, 1},
-                                        {1, 1, 1, 1, 1, 1, 1, 1},
-                                        {1, 1, 1, 0, 1, 1, 1, 1},
-                                        {1, 1, 1, 1, 1, 1, 1, 1},
-                                        {1, 1, 1, 1, 1, 0, 1, 1},
-                                        {1, 1, 1, 1, 1, 1, 1, 1},
-                                        };
-  */
-  /*
-  std::vector<std::vector<int>> img_vec{{1, 1, 1, 1},
-                                        {1, 1, 1, 1},
-                                        {1, 0, 1, 1},
-                                        {1, 1, 1, 1},
-                                        };
-  */
-  // img = Image(img_vec);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   if (rank == 0) printf("Image size: %d X %d\n", img.h, img.w);
@@ -524,24 +468,7 @@ int main(int argc, char *argv[]) {
       Vec2<int> position = deflatten(std::abs(b) - 1, fg->width);
       img.pixels[position.x][position.y] = pred;
     }
-    /*
-    printf("----- Beliefs -----\n");
-    for (int i = 0; i < img.h; i++) {
-      for (int j = 0; j < img.w; j++) {
-        //printf("(%f %f r %f) ", bs[i][j].x, bs[i][j].y, fg->variables[i][j]->residual);
-      }
-      //printf("\n");
-    }
-    */
     img.SaveToFile(output_path);
-    // FactorGraph::writeDenoisedImage(beliefs, "output/denoised_mandelbrot.txt");
-    /*
-    for (Message m : beliefs) {
-      Vec2<float> norm_b = m.message.normalize();
-      // printf("normalized belief for v(%d, %d) is (%f, %f)\n", m.position.x, m.position.y,
-      // norm_b.x, norm_b.y);
-    }
-    */
   }
   MPI_Finalize();
 }
