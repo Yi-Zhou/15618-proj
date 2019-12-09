@@ -45,6 +45,10 @@ inline int flatten(Vec2<int>& position, int width) {
   return position.x * width + position.y;
 }
 
+inline Vec2<int> deflatten(int position, int width) {
+  return {position / width, position % width};
+}
+
 class DistributedBeliefPropagator {
 public:
   std::vector<std::shared_ptr<Variable>> pq;
@@ -63,8 +67,8 @@ public:
   int recv_msgs_cnt = 0;
   Vec2<Vec2<float>> edge_potential;
 
-  DistributedBeliefPropagator(std::shared_ptr<FactorGraph> fg, int bfs_depth) 
-    : fg(fg) {
+  DistributedBeliefPropagator(std::shared_ptr<FactorGraph> fg, int bfs_depth) {
+    this->fg = fg;
     this->bfs_depth = bfs_depth;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
@@ -311,53 +315,35 @@ public:
     }
   }
 
-  std::vector<Message> Merge() {
-    std::vector<Message> beliefs;
-
-    // collect beliefs of variables in current partition
+  std::vector<int> Merge() {
+    std::vector<int> beliefs;
     for (std::shared_ptr<Variable> v: pq) {
-      Vec2<float> belief = v->belief;
-      Message msg;
-      msg.position = v->position;
-      msg.message = belief;
-      msg.direction = 0; // can be ignored
-      beliefs.push_back(msg);
+      int belief = (v->belief.x > v->belief.y? -1 : 1) * 
+        (flatten(v->position, fg->width) + 1);
+      beliefs.push_back(belief);
     }
-
-    //start to merge with other processors;
-    for (int i = 1; i < n_procs; i <<= 1) {
-      int pair;
-      if (rank % (i << 1) < i) {
-          pair = rank + i;
-      } else {
-          pair = rank - i;
+    int size = (int) beliefs.size();
+    if (rank == 0) {
+      int n_slaves = n_procs - 1;
+      for (int i = 0; i < n_slaves; i++) {
+        int count;
+        MPI_Status status;
+        MPI_Probe(MPI_ANY_SOURCE, DATA_T, MPI_COMM_WORLD, &status);
+        MPI_Get_count(&status, MPI_INT, &count);
+        beliefs.resize(size + count);
+        MPI_Recv(&beliefs[size], count, MPI_INT, status.MPI_SOURCE, DATA_T, 
+                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        size += count;
       }
-      int curr_size = beliefs.size();
-      MPI_Request req;
-      int size;
-      MPI_Irecv(&size, 1, MPI_INT, pair, SIZE_T, MPI_COMM_WORLD, &req);
-      MPI_Send(&curr_size, 1, MPI_INT, pair, SIZE_T, MPI_COMM_WORLD);
-      MPI_Wait(&req, MPI_STATUS_IGNORE);
-
-      beliefs.resize(curr_size + size);
-
-      //printf("beliefs size %d after resize %d\n", size, beliefs.size());
-      MPI_Irecv(&beliefs[curr_size], sizeof(Message) * size, MPI_BYTE, pair, 
-                DATA_T, MPI_COMM_WORLD, &req);
-      MPI_Send(&beliefs[0], sizeof(Message) * curr_size, MPI_BYTE, pair, 
-               DATA_T, MPI_COMM_WORLD);
-      MPI_Wait(&req, MPI_STATUS_IGNORE);
-      //printf("receiving normalized belief for v(%d, %d) is (%f, %f)\n", msg.position.x, msg.position.y,
-      // msg.message.x, msg.message.y);
+    } else {
+      MPI_Send(&beliefs[0], size, MPI_INT, /*target*/0, DATA_T, MPI_COMM_WORLD);
     }
-    assert(beliefs.size() == fg->width * fg->height);
     return beliefs;
-    // first calculate beliefs
   }
 
 private:
   int bfs_depth;
-  const std::shared_ptr<FactorGraph> fg;
+  std::shared_ptr<FactorGraph> fg;
   std::vector<std::shared_ptr<Variable>> ConstructBFSOrdering(
       std::shared_ptr<Variable> v) {
     std::vector<std::shared_ptr<Variable>> ordered_variables;
@@ -449,13 +435,13 @@ private:
       power++;
     }
     int div_c;
+    int n_parts = n_procs * over_partition_factor;
     if (power % 2 == 0) {
-      div_c = (int) sqrt(n_procs);
+      div_c = (int) sqrt(n_parts);
     }
     else {
-      div_c = (int) sqrt(n_procs >> 1);
+      div_c = (int) sqrt(n_parts >> 1);
     }
-    int n_parts = n_procs * over_partition_factor;
     int div_r = n_parts / div_c;
 
     int blk_rs = updiv(fg->height, div_r);
@@ -482,13 +468,19 @@ private:
       idx_map[pq[idx]] = idx;
     }
     printf("Process %d: I have %d variables\n", rank, (int) pq.size());
+    printf("Process %d: I am responsible for partitions [", rank);
+    for (int part_id = 0; part_id < (int) part_id_to_process.size(); part_id++) {
+      if (part_id_to_process[part_id] == rank)
+        printf("%d ", part_id);
+    }
+    printf("]\n");
   }
 };
 
 int main(int argc, char *argv[]) {
   printf("Program start.\n");
   MPI_Init(&argc, &argv);
-  Image img = Image::ReadImage("data/rice.txt");
+  Image img = Image::ReadImage("data/noisy_mandelbrot.txt");
   /*
   std::vector<std::vector<int>> img_vec{{1, 1, 1, 1, 1, 1, 1, 1}, 
                                         {1, 1, 1, 1, 1, 1, 1, 1},
@@ -510,6 +502,7 @@ int main(int argc, char *argv[]) {
   // img = Image(img_vec);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == 0) printf("Image size: %d X %d\n", img.h, img.w);
   std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels);
   DistributedBeliefPropagator dbp(fg, 2);
 
@@ -517,22 +510,19 @@ int main(int argc, char *argv[]) {
   t.reset();
   dbp.BeliefPropagate();
   double elapsed = t.elapsed();
-  printf("Converged in %.6fms\n", elapsed);
-  printf("Converged after %d iterations!\n", dbp.n_iters);
+  printf("Process %d Converged in %.6fms\n", rank, elapsed);
+  printf("Process %d Converged after %d iterations!\n", rank, dbp.n_iters);
 
-  std::vector<Message> beliefs = dbp.Merge();
-  Vec2<float> bs[img.h][img.w];
+  std::vector<int> beliefs = dbp.Merge();
   printf("Process %d: n_iters: %d\n", rank, dbp.n_iters);
+  fg->variables.clear();
   if (rank == 0) {
-    for (int i = 0; i < img.h; i++) {
-      for (int j = 0; j < img.w; j++) {
-        bs[i][j] = {-1.0, -1.0};
-      }
+    for (int b: beliefs) {
+      int pred = b < 0? 0: 1;
+      Vec2<int> position = deflatten(std::abs(b) - 1, fg->width);
+      img.pixels[position.x][position.y] = pred;
     }
-    for (Message& b: beliefs) {
-      img.pixels[b.position.x][b.position.y] = b.message.x > b.message.y ? 0 : 1;
-      bs[b.position.x][b.position.y] = b.message;
-    }
+    /*
     printf("----- Beliefs -----\n");
     for (int i = 0; i < img.h; i++) {
       for (int j = 0; j < img.w; j++) {
@@ -540,13 +530,16 @@ int main(int argc, char *argv[]) {
       }
       //printf("\n");
     }
-    img.SaveToFile("output/denoised_rice.bmp");
-    FactorGraph::writeDenoisedImage(beliefs, "output/denoised_rice.txt");
+    */
+    img.SaveToFile("output/denoised_mandelbrot.bmp");
+    // FactorGraph::writeDenoisedImage(beliefs, "output/denoised_mandelbrot.txt");
+    /*
     for (Message m : beliefs) {
       Vec2<float> norm_b = m.message.normalize();
       // printf("normalized belief for v(%d, %d) is (%f, %f)\n", m.position.x, m.position.y,
       // norm_b.x, norm_b.y);
     }
+    */
   }
   MPI_Finalize();
 }

@@ -34,7 +34,7 @@ Image Image::ReadImage(const char* imgFile)
 
 void Image::SaveToFile(const char * filename) {
   /* 
-  NOT OUR WORK. Copied from 
+  NOT OUR WORK. Copied/Modified from 
   https://stackoverflow.com/questions/2654480/writing-bmp-image-in-pure-c-c-without-other-libraries 
   See deusmacabre's answer.
   */
@@ -46,21 +46,19 @@ void Image::SaveToFile(const char * filename) {
   img = (unsigned char *)malloc(3*w*h);
   memset(img,0,3*w*h);
 
-  for(int i = 0; i < w; i++)
+  for(int i = 0; i < h; i++)
   {
-      for(int j = 0; j < h; j++)
+      for(int j = 0; j < w; j++)
       {
-          int x = i; 
-          int y = (h-1)-j;
           int r = pixels[i][j]*255;
           int g = pixels[i][j]*255;
           int b = pixels[i][j]*255;
           if (r > 255) r = 255;
           if (g > 255) g = 255;
           if (b > 255) b = 255;
-          img[(x+y*w)*3+2] = (unsigned char)(r);
-          img[(x+y*w)*3+1] = (unsigned char)(g);
-          img[(x+y*w)*3+0] = (unsigned char)(b);
+          img[(j+i*w)*3+2] = (unsigned char)(r);
+          img[(j+i*w)*3+1] = (unsigned char)(g);
+          img[(j+i*w)*3+0] = (unsigned char)(b);
       }
   }
 
