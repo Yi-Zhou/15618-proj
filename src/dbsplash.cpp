@@ -396,17 +396,16 @@ private:
     // Assume that # processes is a power of 2.
     std::srand(15618);
     int targetlevel = 0;
-    int _n_procs = n_procs;
     int power = 0;
-    while (_n_procs >>= 1) {
-      power++;
-    }
     int div_c;
     int n_parts = n_procs * partition_factor;
+    int _n_parts = n_parts;
+    while (_n_parts >>= 1) {
+      power++;
+    }
     if (power % 2 == 0) {
       div_c = (int) sqrt(n_parts);
-    }
-    else {
+    } else {
       div_c = (int) sqrt(n_parts >> 1);
     }
     int div_r = n_parts / div_c;
