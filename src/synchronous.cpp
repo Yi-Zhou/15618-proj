@@ -140,6 +140,7 @@ public:
         std::vector<Message> in_messages;
 
         getOutMessages(out_messages);
+        int buffer[n_procs];
 
         // send messages to neighbors
         for (int i = 0; i < n_procs; i++) {
@@ -155,9 +156,10 @@ public:
                     int size = out_messages[i].size();
                     MPI_Request size_req, msg_req;
                     Message msg = out_messages[i][0];
+                    buffer[i] = size;
                     //printf("sending msg (%f, %f) to (%d, %d) from direction %d from rank %d to i %d\n", 
                    // msg.message.x, msg.message.y, msg.position.x, msg.position.y, msg.direction, rank, i);
-                    MPI_Isend(&size, 1, MPI_INT, i, tag1, MPI_COMM_WORLD, &size_req);
+                    MPI_Isend(&buffer[i], 1, MPI_INT, i, tag1, MPI_COMM_WORLD, &size_req);
                     MPI_Isend(&out_messages[i][0], sizeof(Message) * size, MPI_BYTE, i, tag2, MPI_COMM_WORLD, &msg_req);
                     size_reqs.push_back(size_req);
                     msg_reqs.push_back(msg_req);
@@ -185,6 +187,7 @@ public:
         }
 
         MPI_Status stats[size_reqs.size()];
+        printf("size_reqs.size %d rank %d num_proc %d\n", size_reqs.size(), rank, n_procs);
         assert(size_reqs.size() > 0);
         MPI_Waitall(size_reqs.size(), &size_reqs[0], stats);
 
@@ -192,7 +195,6 @@ public:
         for (int i = 0; i < neighbor_procs.size(); i++) {
             total_size += sizes[i];
         }
-        //printf("size_reqs.size %d total_size %d\n", size_reqs.size(), total_size);
 
         // receive messages from neighbor processors
         int curr_size = in_messages.size();
@@ -261,7 +263,7 @@ int main(int argc, char *argv[]) {
 
     Image img = Image::ReadImage("data/rice.txt");
     // printf("img %lu %lu\n", img.pixels.size(), img.pixels[0].size());
-    std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels, "data/256_256_8.txt");
+    std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels, "data/256_256_32.txt");
     SynchronousBeliefPropagator bp(fg);
 
     int i = 0;
