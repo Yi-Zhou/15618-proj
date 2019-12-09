@@ -480,7 +480,9 @@ private:
 int main(int argc, char *argv[]) {
   printf("Program start.\n");
   MPI_Init(&argc, &argv);
-  Image img = Image::ReadImage("data/noisy_mandelbrot.txt");
+  const char * filename = "data/noisy_fractal_triangles.txt";
+  const char * output_path = "output/denoised_fractal_triangles.bmp";
+  Image img = Image::ReadImage(filename);
   /*
   std::vector<std::vector<int>> img_vec{{1, 1, 1, 1, 1, 1, 1, 1}, 
                                         {1, 1, 1, 1, 1, 1, 1, 1},
@@ -531,7 +533,7 @@ int main(int argc, char *argv[]) {
       //printf("\n");
     }
     */
-    img.SaveToFile("output/denoised_mandelbrot.bmp");
+    img.SaveToFile(output_path);
     // FactorGraph::writeDenoisedImage(beliefs, "output/denoised_mandelbrot.txt");
     /*
     for (Message m : beliefs) {

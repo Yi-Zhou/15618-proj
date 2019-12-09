@@ -3,7 +3,6 @@
 Variable::Variable(int x, int y, int color) {
   // Colors: 0-Black | 1-White.
   //TODO: remove redundant variable ?
-  color = !color;
   position = Vec2<int>(x, y);
 
   in_msgs[4] = Vec2<float>(color? ENERGY:1.0, color? 1.0:ENERGY);
