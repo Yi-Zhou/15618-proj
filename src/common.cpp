@@ -100,22 +100,21 @@ StartupOptions parseOptions(int argc, char *argv[])
     {
         if (i < argc - 1)
         {
-            if (strcmp(argv[i], "-s") == 0)
-                rs.epsilon = (float)atof(argv[i + 1]);
-            else if (strcmp(argv[i], "-h") == 0)
-                rs.tree_size = atoi(argv[i + 1]);
-            else if (strcmp(argv[i], "-o") == 0)
-                rs.outputFile = argv[i + 1];
-            else if (strcmp(argv[i], "-i") == 0)
-                rs.inputFile = argv[i + 1];
-        }
-        if (strcmp(argv[i], "-ps") == 0)
-        {
-            rs.partitionStyle = PartitionStyle::Static;
-        }
-        else if (strcmp(argv[i], "-pr") == 0)
-        {
-            rs.partitionStyle = PartitionStyle::Random;
+            if (strcmp(argv[i], "-e") == 0 || 
+                strcmp(argv[i], "--epsilon") == 0)
+                rs.converge_threshold = (float)atof(argv[i + 1]);
+            else if (strcmp(argv[i], "-h") == 0 || 
+                     strcmp(argv[i], "-tree-height") == 0)
+                rs.bfs_depth = atoi(argv[i + 1]);
+            else if (strcmp(argv[i], "-o") == 0 || 
+                     strcmp(argv[i], "--output") == 0)
+                rs.output_file = argv[i + 1];
+            else if (strcmp(argv[i], "-i") == 0 ||
+                     strcmp(argv[i], "--input") == 0)
+                rs.input_file = argv[i + 1];
+            else if (strcmp(argv[i], "-p") == 0 ||
+                     strcmp(argv[i], "--partition-factor") == 0)
+                rs.partition_factor = (int) atoi(argv[i + 1]);
         }
     }
     return rs;

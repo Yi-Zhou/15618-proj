@@ -112,10 +112,6 @@ public:
     }
 };
 
-enum class PartitionStyle {
-  Static, Random
-};
-
 class Image {
 public:
   int w, h;
@@ -139,11 +135,11 @@ public:
 
 struct StartupOptions
 {
-    float epsilon = 1e-8;
-    int tree_size = 5;
-    std::string outputFile = "out.jpeg";
-    std::string inputFile = "in.jpeg";
-    PartitionStyle partitionStyle = PartitionStyle::Static;
+    float converge_threshold = 1e-5;
+    int bfs_depth = 2;
+    int partition_factor = 1;
+    char* input_file;
+    char* output_file;
 };
 
 StartupOptions parseOptions(int argc, char *argv[]);

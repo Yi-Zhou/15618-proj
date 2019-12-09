@@ -58,7 +58,6 @@ public:
   Token token;
   Token token_recv_buf;
   Token token_send_buf;
-  const int over_partition_factor = 2;
   int n_iters = 0;
   float converge_threshold = 1e-5;
   MPI_Request token_recv_req;
@@ -67,9 +66,13 @@ public:
   int recv_msgs_cnt = 0;
   Vec2<Vec2<float>> edge_potential;
 
-  DistributedBeliefPropagator(std::shared_ptr<FactorGraph> fg, int bfs_depth) {
+  DistributedBeliefPropagator(std::shared_ptr<FactorGraph> fg, 
+                              StartupOptions& options) {
     this->fg = fg;
-    this->bfs_depth = bfs_depth;
+    bfs_depth = options.bfs_depth;
+    partition_factor = options.partition_factor;
+    converge_threshold = options.converge_threshold;
+
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
     if (rank == 0) token.m = 0;
@@ -310,6 +313,7 @@ public:
 
 private:
   int bfs_depth;
+  int partition_factor;
   std::shared_ptr<FactorGraph> fg;
   std::vector<std::shared_ptr<Variable>> ConstructBFSOrdering(
       std::shared_ptr<Variable> v) {
@@ -398,7 +402,7 @@ private:
       power++;
     }
     int div_c;
-    int n_parts = n_procs * over_partition_factor;
+    int n_parts = n_procs * partition_factor;
     if (power % 2 == 0) {
       div_c = (int) sqrt(n_parts);
     }
@@ -441,16 +445,31 @@ private:
 };
 
 int main(int argc, char *argv[]) {
-  printf("Program start.\n");
   MPI_Init(&argc, &argv);
-  const char * filename = "data/noisy_fractal_triangles.txt";
-  const char * output_path = "output/denoised_fractal_triangles.bmp";
-  Image img = Image::ReadImage(filename);
+  StartupOptions options = parseOptions(argc, argv);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == 0) {
+    printf("Program start.\n");
+    printf("Options\n\
+      converge_threshold = %f\n\
+      bfs_depth = %d\n\
+      input_file = %s\n\
+      output_file = %s\n\
+      partition_factor = %d\n",
+      options.converge_threshold,
+      options.bfs_depth,
+      options.output_file,
+      options.input_file,
+      options.partition_factor
+    );
+  }
+  const char * input_file = options.input_file;
+  const char * output_file = options.output_file;
+  Image img = Image::ReadImage(input_file);
   if (rank == 0) printf("Image size: %d X %d\n", img.h, img.w);
   std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels);
-  DistributedBeliefPropagator dbp(fg, 2);
+  DistributedBeliefPropagator dbp(fg, options);
 
   Timer t;
   t.reset();
@@ -458,9 +477,9 @@ int main(int argc, char *argv[]) {
   double elapsed = t.elapsed();
   printf("Process %d Converged in %.6fms\n", rank, elapsed);
   printf("Process %d Converged after %d iterations!\n", rank, dbp.n_iters);
+  printf("Process %d: n_iters: %d\n", rank, dbp.n_iters);
 
   std::vector<int> beliefs = dbp.Merge();
-  printf("Process %d: n_iters: %d\n", rank, dbp.n_iters);
   fg->variables.clear();
   if (rank == 0) {
     for (int b: beliefs) {
@@ -468,7 +487,7 @@ int main(int argc, char *argv[]) {
       Vec2<int> position = deflatten(std::abs(b) - 1, fg->width);
       img.pixels[position.x][position.y] = pred;
     }
-    img.SaveToFile(output_path);
+    img.SaveToFile(output_file);
   }
   MPI_Finalize();
 }
