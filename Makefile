@@ -4,7 +4,7 @@ OUTPUTDIR := build
 CFLAGS := -std=c++11 -fvisibility=hidden -lpthread
 
 ifeq (,$(CONFIGURATION))
-	CONFIGURATION := sync
+	CONFIGURATION := async
 endif
 
 ifeq (debug,$(CONFIGURATION))

@@ -54,7 +54,7 @@ public:
   std::vector<std::shared_ptr<Variable>> pq;
   std::unordered_map<std::shared_ptr<Variable>, int> idx_map;
   int rank, n_procs;
-  int send_msgs_every = 10;
+  int send_msgs_every = 1;
   Token token;
   Token token_recv_buf;
   Token token_send_buf;
@@ -86,14 +86,41 @@ public:
     std::vector<std::vector<Message>> boundary_msgs(n_procs);
     std::vector<Message> received_msgs;
     std::unordered_map<std::shared_ptr<Variable>, float> var_updates;
-    std::vector<Message> msgs;
     std::queue<MPI_Request> sent_reqs;
-    std::queue<Message*> msg_buf;
     n_iters = 0;
 
     // Subscribe the token ring.
     MPI_Irecv(&token_recv_buf, sizeof(Token), MPI_BYTE, MPI_ANY_SOURCE, 
               TOKEN_T, MPI_COMM_WORLD, &token_recv_req);
+    for (std::shared_ptr<Variable> root: pq) {
+      // Grow a spanning tree.
+      const std::vector<std::shared_ptr<Variable>>& ordered_variables = 
+        ConstructBFSOrdering(root);
+
+      // From leaves to root.
+      for (auto it = ordered_variables.rbegin();
+           it != ordered_variables.rend(); ++it) {
+        SendMessages(*it, boundary_msgs, var_updates);
+      }
+      // From root to leaves.
+      for (auto& var: ordered_variables) {
+        SendMessages(var, boundary_msgs, var_updates);
+      }
+      for (auto it = var_updates.begin(); it != var_updates.end(); ++it) {
+        if (it->first == root) continue;
+        it->first->residual += it->second;
+      }
+
+      if (root != nullptr) {
+        root->residual = 0.0;
+      }
+      var_updates.clear();
+    }
+    std::make_heap(pq.begin(), pq.end(), deref_cmp());
+    for (int idx = 0; idx < (int) pq.size(); idx++) {
+      idx_map[pq[idx]] = idx;
+    }
+
     while (TokenRing(pq)) {
 
       std::shared_ptr<Variable> root = GetNextVariable();
@@ -159,7 +186,7 @@ public:
       if (n_iters % send_msgs_every == 0) {
         for (int tgt = 0; tgt < n_procs; tgt++) {
           if (tgt == rank) continue; // Ignore itself.
-          msgs = boundary_msgs[tgt];
+          std::vector<Message> msgs = boundary_msgs[tgt];
           if (!msgs.empty()) {
             MPI_Request req;
             int count = (int) msgs.size() * sizeof(Message);
@@ -209,8 +236,7 @@ public:
       if (token.m == END_SIGNAL) {
         return false;
       }
-      if (token.m >= 2 * n_procs && 
-          token.send_msgs_cnt == token.recv_msgs_cnt) {
+      if (token.m >= n_procs) {
         // Everyone has converged, send end signal to every one.
         token.m = END_SIGNAL;
         for (int tgt = 0; tgt < n_procs; tgt++) {
@@ -429,9 +455,6 @@ private:
           pq.push_back(var);
         }
       }
-    }
-    for (int idx = 0; idx < (int) pq.size(); idx++) {
-      idx_map[pq[idx]] = idx;
     }
     printf("Process %d: I have %d variables\n", rank, (int) pq.size());
     printf("Process %d: I am responsible for partitions [", rank);
