@@ -4,31 +4,35 @@
 #include <vector>
 #include "mpi.h"
 
-float max_diff(float diff) {
-    int rank, n_procs;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    MPI_Request req;
-    int tag1 = 1;
+float max_diff(float diff)
+{
+  int rank, n_procs;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
+  MPI_Request req;
+  int tag1 = 1;
 
-    for (int i = 1; i < n_procs; i <<= 1) {
-        int pair;
-        if (rank % (i << 1) < i) {
-            pair = rank + i;
-        } else {
-            pair = rank - i;
-        }
-        float other_max_diff;
-        MPI_Irecv(&other_max_diff, 1, MPI_FLOAT, pair, tag1, MPI_COMM_WORLD, &req);
-        MPI_Send(&diff, 1, MPI_FLOAT, pair, tag1, MPI_COMM_WORLD);
-        //printf("rank %d diff %f i %d\n", rank, diff, i);
-        MPI_Wait(&req, MPI_STATUS_IGNORE);
-        diff = std::max(other_max_diff, diff);
+  for (int i = 1; i < n_procs; i <<= 1)
+  {
+    int pair;
+    if (rank % (i << 1) < i)
+    {
+      pair = rank + i;
     }
+    else
+    {
+      pair = rank - i;
+    }
+    float other_max_diff;
+    MPI_Irecv(&other_max_diff, 1, MPI_FLOAT, pair, tag1, MPI_COMM_WORLD, &req);
+    MPI_Send(&diff, 1, MPI_FLOAT, pair, tag1, MPI_COMM_WORLD);
+    //printf("rank %d diff %f i %d\n", rank, diff, i);
+    MPI_Wait(&req, MPI_STATUS_IGNORE);
+    diff = std::max(other_max_diff, diff);
+  }
 
-    return diff;
+  return diff;
 }
-
 
 /*
 int main(int argc, char *argv[]) {

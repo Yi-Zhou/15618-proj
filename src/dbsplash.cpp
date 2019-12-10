@@ -19,37 +19,44 @@
 const int END_SIGNAL = -2;
 const int EMPTY_TOKEN = -1;
 
-inline int updiv(int x, int y) {
+inline int updiv(int x, int y)
+{
   return (x + y - 1) / y;
 }
 
-struct deref_cmp {
-  bool operator() (const std::shared_ptr<Variable> v1, 
-                   const std::shared_ptr<Variable> v2) {
+struct deref_cmp
+{
+  bool operator()(const std::shared_ptr<Variable> v1,
+                  const std::shared_ptr<Variable> v2)
+  {
     return *v1 < *v2;
   }
 };
 
-struct Token {
+struct Token
+{
   int m = 0;
   int recv_msgs_cnt = 0;
   int send_msgs_cnt = 0;
 };
 
-
-inline int opposite(int direction) {
+inline int opposite(int direction)
+{
   return (direction + 2) % 4;
 }
 
-inline int flatten(Vec2<int>& position, int width) {
+inline int flatten(Vec2<int> &position, int width)
+{
   return position.x * width + position.y;
 }
 
-inline Vec2<int> deflatten(int position, int width) {
+inline Vec2<int> deflatten(int position, int width)
+{
   return {position / width, position % width};
 }
 
-class DistributedBeliefPropagator {
+class DistributedBeliefPropagator
+{
 public:
   std::vector<std::shared_ptr<Variable>> pq;
   std::unordered_map<std::shared_ptr<Variable>, int> idx_map;
@@ -66,8 +73,9 @@ public:
   int recv_msgs_cnt = 0;
   Vec2<Vec2<float>> edge_potential;
 
-  DistributedBeliefPropagator(std::shared_ptr<FactorGraph> fg, 
-                              StartupOptions& options) {
+  DistributedBeliefPropagator(std::shared_ptr<FactorGraph> fg,
+                              StartupOptions &options)
+  {
     this->fg = fg;
     bfs_depth = options.bfs_depth;
     partition_factor = options.partition_factor;
@@ -75,14 +83,17 @@ public:
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &n_procs);
-    if (rank == 0) token.m = 0;
-    else token.m = -1;
+    if (rank == 0)
+      token.m = 0;
+    else
+      token.m = -1;
     edge_potential.x = Vec2<float>(1.0, PHI);
     edge_potential.y = Vec2<float>(PHI, 1.0);
     Partition(fg);
   }
 
-  void BeliefPropagate() {
+  void BeliefPropagate()
+  {
     std::vector<std::vector<Message>> boundary_msgs(n_procs);
     std::vector<Message> received_msgs;
     std::unordered_map<std::shared_ptr<Variable>, float> var_updates;
@@ -90,74 +101,89 @@ public:
     n_iters = 0;
 
     // Subscribe the token ring.
-    MPI_Irecv(&token_recv_buf, sizeof(Token), MPI_BYTE, MPI_ANY_SOURCE, 
+    MPI_Irecv(&token_recv_buf, sizeof(Token), MPI_BYTE, MPI_ANY_SOURCE,
               TOKEN_T, MPI_COMM_WORLD, &token_recv_req);
-    for (std::shared_ptr<Variable> root: pq) {
+    for (std::shared_ptr<Variable> root : pq)
+    {
       // Grow a spanning tree.
-      const std::vector<std::shared_ptr<Variable>>& ordered_variables = 
-        ConstructBFSOrdering(root);
+      const std::vector<std::shared_ptr<Variable>> &ordered_variables =
+          ConstructBFSOrdering(root);
 
       // From leaves to root.
       for (auto it = ordered_variables.rbegin();
-           it != ordered_variables.rend(); ++it) {
+           it != ordered_variables.rend(); ++it)
+      {
         SendMessages(*it, boundary_msgs, var_updates);
       }
       // From root to leaves.
-      for (auto& var: ordered_variables) {
+      for (auto &var : ordered_variables)
+      {
         SendMessages(var, boundary_msgs, var_updates);
       }
-      for (auto it = var_updates.begin(); it != var_updates.end(); ++it) {
-        if (it->first == root) continue;
+      for (auto it = var_updates.begin(); it != var_updates.end(); ++it)
+      {
+        if (it->first == root)
+          continue;
         it->first->residual += it->second;
       }
 
-      if (root != nullptr) {
+      if (root != nullptr)
+      {
         root->residual = 0.0;
       }
       var_updates.clear();
     }
     std::make_heap(pq.begin(), pq.end(), deref_cmp());
-    for (int idx = 0; idx < (int) pq.size(); idx++) {
+    for (int idx = 0; idx < (int)pq.size(); idx++)
+    {
       idx_map[pq[idx]] = idx;
     }
 
-    while (TokenRing(pq)) {
+    while (TokenRing(pq))
+    {
 
       std::shared_ptr<Variable> root = GetNextVariable();
 
-      if (root != nullptr) {
-        if (root->residual > converge_threshold) {
+      if (root != nullptr)
+      {
+        if (root->residual > converge_threshold)
+        {
 
           // Grow a spanning tree.
-          const std::vector<std::shared_ptr<Variable>>& ordered_variables = 
-            ConstructBFSOrdering(root);
+          const std::vector<std::shared_ptr<Variable>> &ordered_variables =
+              ConstructBFSOrdering(root);
 
           // From leaves to root.
           for (auto it = ordered_variables.rbegin();
-               it != ordered_variables.rend(); ++it) {
+               it != ordered_variables.rend(); ++it)
+          {
             SendMessages(*it, boundary_msgs, var_updates);
           }
           // From root to leaves.
-          for (auto& var: ordered_variables) {
+          for (auto &var : ordered_variables)
+          {
             SendMessages(var, boundary_msgs, var_updates);
           }
         }
       }
 
-      // Receive external messages. 
+      // Receive external messages.
       int pos = 0;
-      for (int src = 0; src < n_procs; src++) {
-        if (src == rank) continue; // Ignore itself.
+      for (int src = 0; src < n_procs; src++)
+      {
+        if (src == rank)
+          continue; // Ignore itself.
         MPI_Status status;
         int flag;
         // Get message count before receiving them.
         MPI_Iprobe(src, MSG_T, MPI_COMM_WORLD, &flag, &status);
-        if (flag) {
+        if (flag)
+        {
           int count;
           MPI_Get_count(&status, MPI_BYTE, &count);
           int num_msgs = count / sizeof(Message);
-          received_msgs.reserve((int) pos + num_msgs);
-          MPI_Recv(&received_msgs[pos], count, MPI_BYTE, src, MSG_T, 
+          received_msgs.reserve((int)pos + num_msgs);
+          MPI_Recv(&received_msgs[pos], count, MPI_BYTE, src, MSG_T,
                    MPI_COMM_WORLD, MPI_STATUS_IGNORE);
           pos += num_msgs;
           recv_msgs_cnt += num_msgs;
@@ -165,7 +191,8 @@ public:
       }
 
       // Update with all received boundary messages.
-      for (Message msg: received_msgs) {
+      for (Message msg : received_msgs)
+      {
         int x = msg.position.x, y = msg.position.y;
         std::shared_ptr<Variable> var = fg->variables[x][y];
         float belief_change = var->ReceiveMessage(msg.message, msg.direction);
@@ -174,46 +201,55 @@ public:
       received_msgs.clear();
 
       // Promote updated variables except the root.
-      for (auto it = var_updates.begin(); it != var_updates.end(); ++it) {
-        if (it->first == root) continue;
+      for (auto it = var_updates.begin(); it != var_updates.end(); ++it)
+      {
+        if (it->first == root)
+          continue;
         Promote(it->first, it->second);
       }
-
 
       n_iters += 1;
 
       // Send external messages every x iterations.
-      if (n_iters % send_msgs_every == 0) {
-        for (int tgt = 0; tgt < n_procs; tgt++) {
-          if (tgt == rank) continue; // Ignore itself.
+      if (n_iters % send_msgs_every == 0)
+      {
+        for (int tgt = 0; tgt < n_procs; tgt++)
+        {
+          if (tgt == rank)
+            continue; // Ignore itself.
           std::vector<Message> msgs = boundary_msgs[tgt];
-          if (!msgs.empty()) {
+          if (!msgs.empty())
+          {
             MPI_Request req;
-            int count = (int) msgs.size() * sizeof(Message);
-            MPI_Isend(&msgs[0], count, MPI_BYTE, tgt, MSG_T, MPI_COMM_WORLD, 
+            int count = (int)msgs.size() * sizeof(Message);
+            MPI_Isend(&msgs[0], count, MPI_BYTE, tgt, MSG_T, MPI_COMM_WORLD,
                       &req);
-            send_msgs_cnt += (int) msgs.size();
+            send_msgs_cnt += (int)msgs.size();
             sent_reqs.push(req);
             boundary_msgs[tgt] = std::vector<Message>();
           }
         }
       }
       int flag = !sent_reqs.empty();
-      while (flag) {
+      while (flag)
+      {
         MPI_Request sent_req = sent_reqs.front();
         MPI_Test(&sent_req, &flag, MPI_STATUS_IGNORE);
-        if (flag) sent_reqs.pop();
+        if (flag)
+          sent_reqs.pop();
         flag = (!sent_reqs.empty()) && flag;
       }
 
       // Append root to the end of the priority queue.
-      if (root != nullptr) {
+      if (root != nullptr)
+      {
         root->residual = 0.0;
         pq.push_back(root);
-        idx_map[root] = ((int) pq.size()) - 1;
+        idx_map[root] = ((int)pq.size()) - 1;
       }
 
-      for (auto& msgs: boundary_msgs) {
+      for (auto &msgs : boundary_msgs)
+      {
         msgs.clear();
       }
       var_updates.clear();
@@ -227,22 +263,28 @@ public:
     */
   }
 
-  bool TokenRing(std::vector<std::shared_ptr<Variable>>& pq) {
+  bool TokenRing(std::vector<std::shared_ptr<Variable>> &pq)
+  {
     int flag;
     // Check for token receipt.
     MPI_Test(&token_recv_req, &flag, MPI_STATUS_IGNORE);
-    if (flag) {
+    if (flag)
+    {
       token = token_recv_buf;
-      if (token.m == END_SIGNAL) {
+      if (token.m == END_SIGNAL)
+      {
         return false;
       }
-      if (token.m >= n_procs) {
+      if (token.m >= n_procs)
+      {
         // Everyone has converged, send end signal to every one.
         token.m = END_SIGNAL;
-        for (int tgt = 0; tgt < n_procs; tgt++) {
-          if (tgt == rank) continue;
+        for (int tgt = 0; tgt < n_procs; tgt++)
+        {
+          if (tgt == rank)
+            continue;
           // printf("Process %d send end signal to Process %d\n", rank, tgt);
-          MPI_Send(&token, sizeof(Token), MPI_BYTE, tgt, TOKEN_T, 
+          MPI_Send(&token, sizeof(Token), MPI_BYTE, tgt, TOKEN_T,
                    MPI_COMM_WORLD);
         }
         return false;
@@ -252,22 +294,25 @@ public:
     }
 
     // If the process has not converged yet, continue iterations.
-    if (!pq.empty() && pq[0]->residual > converge_threshold) {
+    if (!pq.empty() && pq[0]->residual > converge_threshold)
+    {
       // Reset the token if the processor holds it.
-      if (token.m > 0) token.m = 0;
+      if (token.m > 0)
+        token.m = 0;
       return true;
     }
 
     // Otherwise, the process has temperarily converged.
     // If it has the token, send the token to the next processor.
-    if (token.m >= 0) {
+    if (token.m >= 0)
+    {
       token.m += 1;
       token.send_msgs_cnt += send_msgs_cnt;
       token.recv_msgs_cnt += recv_msgs_cnt;
       send_msgs_cnt = 0;
       recv_msgs_cnt = 0;
       // Wait until the token is received by the next processor.
-      MPI_Send(&token, sizeof(Token), MPI_BYTE, (rank + 1) % n_procs, 
+      MPI_Send(&token, sizeof(Token), MPI_BYTE, (rank + 1) % n_procs,
                TOKEN_T, MPI_COMM_WORLD);
       token.m = -1;
     }
@@ -277,29 +322,34 @@ public:
   }
 
   void SendMessages(
-    std::shared_ptr<Variable> v, 
-    std::vector<std::vector<Message>>& boundary_msgs,
-    std::unordered_map<std::shared_ptr<Variable>, float>& var_updates
-  ) {
+      std::shared_ptr<Variable> v,
+      std::vector<std::vector<Message>> &boundary_msgs,
+      std::unordered_map<std::shared_ptr<Variable>, float> &var_updates)
+  {
     // belief.
     Vec2<float> belief = v->belief;
 
     // Update in-messages for each of the variable's neighbors.
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 4; i++)
+    {
       Vec2<float> out_msg = belief / v->in_msgs[i];
       Vec2<float> recv_msg = Vec2<float>(
-        out_msg.x + out_msg.y * PHI, 
-        out_msg.x * PHI + out_msg.y
-      ).normalize();
+                                 out_msg.x + out_msg.y * PHI,
+                                 out_msg.x * PHI + out_msg.y)
+                                 .normalize();
       int j = opposite(i);
       std::shared_ptr<Variable> n = fg->GetNeighbor(v, i);
-      if (n == nullptr) continue;
-      if (n->partition == rank) {
+      if (n == nullptr)
+        continue;
+      if (n->partition == rank)
+      {
         // If the receiver is in the same partition,
         // directly update the in_msg.
         float belief_change = n->ReceiveMessage(recv_msg, j);
         var_updates[n] += belief_change;
-      } else {
+      }
+      else
+      {
         // If the receiver is in another partition,
         // Store the message in boundary_msgs to send later.
         Message msg;
@@ -311,28 +361,34 @@ public:
     }
   }
 
-  std::vector<int> Merge() {
+  std::vector<int> Merge()
+  {
     std::vector<int> beliefs;
-    for (std::shared_ptr<Variable> v: pq) {
-      int belief = (v->belief.x > v->belief.y? -1 : 1) * 
-        (flatten(v->position, fg->width) + 1);
+    for (std::shared_ptr<Variable> v : pq)
+    {
+      int belief = (v->belief.x > v->belief.y ? -1 : 1) *
+                   (flatten(v->position, fg->width) + 1);
       beliefs.push_back(belief);
     }
-    int size = (int) beliefs.size();
-    if (rank == 0) {
+    int size = (int)beliefs.size();
+    if (rank == 0)
+    {
       int n_slaves = n_procs - 1;
-      for (int i = 0; i < n_slaves; i++) {
+      for (int i = 0; i < n_slaves; i++)
+      {
         int count;
         MPI_Status status;
         MPI_Probe(MPI_ANY_SOURCE, DATA_T, MPI_COMM_WORLD, &status);
         MPI_Get_count(&status, MPI_INT, &count);
         beliefs.resize(size + count);
-        MPI_Recv(&beliefs[size], count, MPI_INT, status.MPI_SOURCE, DATA_T, 
+        MPI_Recv(&beliefs[size], count, MPI_INT, status.MPI_SOURCE, DATA_T,
                  MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         size += count;
       }
-    } else {
-      MPI_Send(&beliefs[0], size, MPI_INT, /*target*/0, DATA_T, MPI_COMM_WORLD);
+    }
+    else
+    {
+      MPI_Send(&beliefs[0], size, MPI_INT, /*target*/ 0, DATA_T, MPI_COMM_WORLD);
     }
     return beliefs;
   }
@@ -342,24 +398,30 @@ private:
   int partition_factor;
   std::shared_ptr<FactorGraph> fg;
   std::vector<std::shared_ptr<Variable>> ConstructBFSOrdering(
-      std::shared_ptr<Variable> v) {
+      std::shared_ptr<Variable> v)
+  {
     std::vector<std::shared_ptr<Variable>> ordered_variables;
     std::unordered_set<int> visited;
     std::queue<std::pair<std::shared_ptr<Variable>, int>> q;
     q.push(std::make_pair(v, 0));
     visited.insert(flatten(v->position, fg->width));
-    while (!q.empty()) {
-      auto& vh = q.front();
+    while (!q.empty())
+    {
+      auto &vh = q.front();
       auto v = vh.first;
       int h = vh.second;
       q.pop();
       ordered_variables.push_back(v);
-      for (int i = 0; i < 4 && h < bfs_depth; i++) {
+      for (int i = 0; i < 4 && h < bfs_depth; i++)
+      {
         std::shared_ptr<Variable> n = fg->GetNeighbor(v, i);
-        if (n == nullptr) continue;
+        if (n == nullptr)
+          continue;
         int cord = flatten(n->position, fg->width);
-        if (visited.find(cord) == visited.end()) {
-          if (n->partition == rank && n->residual > converge_threshold) {
+        if (visited.find(cord) == visited.end())
+        {
+          if (n->partition == rank && n->residual > converge_threshold)
+          {
             q.push(std::make_pair(n, h + 1));
             visited.insert(flatten(n->position, fg->width));
           }
@@ -369,31 +431,38 @@ private:
     return ordered_variables;
   }
 
-  std::shared_ptr<Variable> GetNextVariable() {
-    if (pq.empty()) return nullptr;
+  std::shared_ptr<Variable> GetNextVariable()
+  {
+    if (pq.empty())
+      return nullptr;
     std::shared_ptr<Variable> root = pq[0];
-    if (root->residual <= converge_threshold) return nullptr;
+    if (root->residual <= converge_threshold)
+      return nullptr;
     std::shared_ptr<Variable> var = pq.back();
     pq[0] = var;
     pq.pop_back();
     idx_map.erase(root);
     idx_map[var] = 0;
     int cur_idx = 0;
-    int heap_size = (int) pq.size();
-    while (cur_idx < heap_size) {
+    int heap_size = (int)pq.size();
+    while (cur_idx < heap_size)
+    {
       std::shared_ptr<Variable> largest = var;
       int largest_idx = cur_idx;
       int left_idx = (cur_idx << 1) + 1;
       int right_idx = (cur_idx << 1) + 2;
-      if (left_idx < heap_size && (*pq[left_idx]) > (*largest)) {
+      if (left_idx < heap_size && (*pq[left_idx]) > (*largest))
+      {
         largest = pq[left_idx];
         largest_idx = left_idx;
       }
-      if (right_idx < heap_size && (*pq[right_idx]) > (*largest)) {
+      if (right_idx < heap_size && (*pq[right_idx]) > (*largest))
+      {
         largest = pq[right_idx];
         largest_idx = right_idx;
       }
-      if (largest_idx == cur_idx) break;
+      if (largest_idx == cur_idx)
+        break;
       std::iter_swap(pq.begin() + cur_idx, pq.begin() + largest_idx);
       idx_map[var] = idx_map[largest];
       idx_map[largest] = cur_idx;
@@ -402,14 +471,17 @@ private:
     return root;
   }
 
-  void Promote(std::shared_ptr<Variable> var, float belief_change) {
+  void Promote(std::shared_ptr<Variable> var, float belief_change)
+  {
     var->residual += belief_change;
 
     int idx = idx_map[var];
-    while (idx != 0) {
+    while (idx != 0)
+    {
       int p_idx = (idx - 1) >> 1;
       std::shared_ptr<Variable> parent = pq[p_idx];
-      if ((*parent) >= (*var)) break;
+      if ((*parent) >= (*var))
+        break;
       // Swap parent and var.
       std::iter_swap(pq.begin() + idx, pq.begin() + p_idx);
       idx_map[parent] = idx;
@@ -418,7 +490,8 @@ private:
     }
   }
 
-  void Partition(std::shared_ptr<FactorGraph> fg) {
+  void Partition(std::shared_ptr<FactorGraph> fg)
+  {
     // Assume that # processes is a power of 2.
     std::srand(15618);
     int targetlevel = 0;
@@ -426,13 +499,17 @@ private:
     int div_c;
     int n_parts = n_procs * partition_factor;
     int _n_parts = n_parts;
-    while (_n_parts >>= 1) {
+    while (_n_parts >>= 1)
+    {
       power++;
     }
-    if (power % 2 == 0) {
-      div_c = (int) sqrt(n_parts);
-    } else {
-      div_c = (int) sqrt(n_parts >> 1);
+    if (power % 2 == 0)
+    {
+      div_c = (int)sqrt(n_parts);
+    }
+    else
+    {
+      div_c = (int)sqrt(n_parts >> 1);
     }
     int div_r = n_parts / div_c;
 
@@ -440,25 +517,30 @@ private:
     int blk_cs = updiv(fg->width, div_c);
 
     std::vector<int> part_id_to_process;
-    for (int i = 0; i < n_parts; i++) {
+    for (int i = 0; i < n_parts; i++)
+    {
       part_id_to_process.push_back(i % n_procs);
-    } 
+    }
     // For over-partitioning.
     std::random_shuffle(part_id_to_process.begin(), part_id_to_process.end());
-    for (int i = 0; i < fg->height; i++) {
-      for (int j = 0; j < fg->width; j++) {
+    for (int i = 0; i < fg->height; i++)
+    {
+      for (int j = 0; j < fg->width; j++)
+      {
         std::shared_ptr<Variable> var = fg->variables[i][j];
         int proc_id = part_id_to_process[i / blk_rs * div_c + j / blk_cs];
         var->partition = proc_id;
-        if (proc_id == rank) {
+        if (proc_id == rank)
+        {
           // Add variables to the priority queue.
           pq.push_back(var);
         }
       }
     }
-    printf("Process %d: I have %d variables\n", rank, (int) pq.size());
+    printf("Process %d: I have %d variables\n", rank, (int)pq.size());
     printf("Process %d: I am responsible for partitions [", rank);
-    for (int part_id = 0; part_id < (int) part_id_to_process.size(); part_id++) {
+    for (int part_id = 0; part_id < (int)part_id_to_process.size(); part_id++)
+    {
       if (part_id_to_process[part_id] == rank)
         printf("%d ", part_id);
     }
@@ -466,12 +548,14 @@ private:
   }
 };
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
   MPI_Init(&argc, &argv);
   StartupOptions options = parseOptions(argc, argv);
   int rank;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  if (rank == 0) {
+  if (rank == 0)
+  {
     printf("Program start.\n");
     printf("Options\n\
       converge_threshold = %f\n\
@@ -479,17 +563,17 @@ int main(int argc, char *argv[]) {
       input_file = %s\n\
       output_file = %s\n\
       partition_factor = %d\n",
-      options.converge_threshold,
-      options.bfs_depth,
-      options.output_file,
-      options.input_file,
-      options.partition_factor
-    );
+           options.converge_threshold,
+           options.bfs_depth,
+           options.output_file,
+           options.input_file,
+           options.partition_factor);
   }
-  const char * input_file = options.input_file;
-  const char * output_file = options.output_file;
+  const char *input_file = options.input_file;
+  const char *output_file = options.output_file;
   Image img = Image::ReadImage(input_file);
-  if (rank == 0) printf("Image size: %d X %d\n", img.h, img.w);
+  if (rank == 0)
+    printf("Image size: %d X %d\n", img.h, img.w);
   std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels);
   DistributedBeliefPropagator dbp(fg, options);
 
@@ -503,9 +587,11 @@ int main(int argc, char *argv[]) {
 
   std::vector<int> beliefs = dbp.Merge();
   fg->variables.clear();
-  if (rank == 0) {
-    for (int b: beliefs) {
-      int pred = b < 0? 0: 1;
+  if (rank == 0)
+  {
+    for (int b : beliefs)
+    {
+      int pred = b < 0 ? 0 : 1;
       Vec2<int> position = deflatten(std::abs(b) - 1, fg->width);
       img.pixels[position.x][position.y] = pred;
     }
