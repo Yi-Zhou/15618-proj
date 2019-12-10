@@ -10,13 +10,15 @@
 const float ENERGY = 0.1;
 const float PHI = 0.3;
 
-struct Message {
+struct Message
+{
   Vec2<float> message;
   Vec2<int> position;
   int direction;
 };
 
-class Variable {
+class Variable
+{
 public:
   int partition = 0;
   float residual;
@@ -25,41 +27,47 @@ public:
   Vec2<float> in_msgs[5];
   std::shared_ptr<Variable> neighbors[4];
 
-  Variable(int x, int y, int color); 
+  Variable(int x, int y, int color);
   Vec2<float> calulateBelief();
 
-  float ReceiveMessage(Vec2<float>& msg, int direction);
+  float ReceiveMessage(Vec2<float> &msg, int direction);
 
-  bool operator < (Variable& var) {
+  bool operator<(Variable &var)
+  {
     return residual < var.residual;
   }
 
-  bool operator <= (Variable& var) {
+  bool operator<=(Variable &var)
+  {
     return residual <= var.residual;
   }
 
-  bool operator == (Variable& var) {
+  bool operator==(Variable &var)
+  {
     return residual == var.residual;
   }
 
-  bool operator >= (Variable& var) {
+  bool operator>=(Variable &var)
+  {
     return residual >= var.residual;
   }
 
-  bool operator > (Variable& var) {
+  bool operator>(Variable &var)
+  {
     return residual > var.residual;
   }
 };
 
-class FactorGraph {
+class FactorGraph
+{
 public:
   int width, height;
   std::vector<std::vector<std::shared_ptr<Variable>>> variables;
-  FactorGraph(std::vector<std::vector<int>>& img);
-  FactorGraph(std::vector<std::vector<int>>& img, const char* partitionFile);
+  FactorGraph(std::vector<std::vector<int>> &img);
+  FactorGraph(std::vector<std::vector<int>> &img, const char *partitionFile);
   std::shared_ptr<Variable> GetVariable(int i, int j);
   std::shared_ptr<Variable> GetNeighbor(std::shared_ptr<Variable> var, int direction);
-  static void writeDenoisedImage(std::vector<Message>& beliefs, const char* filename);
+  static void writeDenoisedImage(std::vector<Message> &beliefs, const char *filename);
 };
 
 #endif
