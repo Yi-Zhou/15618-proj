@@ -188,7 +188,7 @@ public:
 
         MPI_Status stats[size_reqs.size()];
         //printf("size_reqs.size %d rank %d num_proc %d\n", size_reqs.size(), rank, n_procs);
-        assert(size_reqs.size() > 0);
+        // assert(size_reqs.size() > 0);
         MPI_Waitall(size_reqs.size(), &size_reqs[0], stats);
 
         int total_size = 0;
@@ -251,7 +251,7 @@ private:
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
     if (argc != 5) {
-        printf("Usage: mpirun -np [nproc] synchronous [max_iter] [data_file] [partition_file] [out_file]");
+        printf("Usage: mpirun -np [nproc] synchronous [max_iter] [data_file] [partition_file] [out_file]\n");
         exit(1);
     }
     int max_iter = std::stoi(argv[1]);
@@ -273,7 +273,7 @@ int main(int argc, char *argv[]) {
     Image img = Image::ReadImage(image_file);
     // printf("img %lu %lu\n", img.pixels.size(), img.pixels[0].size());
     double total_elapsed = 0.0;
-    int num_iter = 5;
+    int num_iter = 1;
     for (int j = 0; j < num_iter; j++) {
         printf("Start %dth belief propagation!\n", j);
         std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels, partition_file);
@@ -291,13 +291,14 @@ int main(int argc, char *argv[]) {
             }
             i++;
         }
-
+        double elapsed = t.elapsed();
         if (i < max_iter) {
-            double elapsed = t.elapsed();
             if (j > 0) {
                 total_elapsed += elapsed;
             }
             printf("Converged in %.6fs after %d iterations!\n", elapsed, i);
+        } else {
+            printf("Fail to converged in %.6fs after %d iterations!\n", elapsed, i);
         }
         if (j == num_iter - 1) {
             std::vector<Message> beliefs = bp.merge();
@@ -306,7 +307,14 @@ int main(int argc, char *argv[]) {
 
             if (rank == 0) {
                 assert(beliefs.size() == img.w * img.h);
-                FactorGraph::writeDenoisedImage(beliefs, out_file); 
+                for (Message m : beliefs) {
+                    Vec2<float> norm_b = m.message.normalize();
+                        // printf("normalized belief for v(%d, %d) is (%f, %f)\n", m.position.x, m.position.y,
+                        // norm_b.x, norm_b.y);
+                    int color = norm_b.x > norm_b.y ? 0 : 1;
+                    img.pixels[m.position.x][m.position.y] = color;
+                }
+                img.SaveToFile(out_file); 
             }
         }
     }
