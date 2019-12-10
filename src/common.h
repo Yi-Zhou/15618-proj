@@ -128,7 +128,7 @@ public:
   // void SetColor(int i, int j, int color) {
   //   this->pixels[(i * this->w) + j] = color;
   // }
-  void SaveToFile(std::string& filename);
+   void SaveToFile(const char* filename);
 private:
   Image(std::vector<std::vector<int>>& pixels) {
     this->pixels = pixels;
