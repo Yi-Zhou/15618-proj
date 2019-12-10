@@ -14,25 +14,39 @@ CFLAGS += -O3
 endif
 
 # SOURCES := src/*.cpp
-SOURCES = $(filter-out src/partition.cpp, $(wildcard src/*.cpp))
-HEADERS := src/*.h
-
-TARGETBIN := bp-$(CONFIGURATION)
+# TARGETBIN := bp-$(CONFIGURATION)
 
 CXX = mpic++
 
 .SUFFIXES:
-.PHONY: all clean
+.PHONY: 
 
-all: $(TARGETBIN)
+SYNCBIN := $(OUTPUTDIR)/synchronous
+DBSBIN := $(OUTPUTDIR)/dpsplash
+PARTBIN := $(OUTPUTDIR)/partition
+
+all: $(SYNCBIN) $(DBSBIN) $(PARTBIN)
+
+SOURCES := src/dbsplash.cpp src/fg.cpp src/common.cpp
+HEADERS := src/*.h
 
 SYNCSOURCES := src/synchronous.cpp src/fg.cpp src/common.cpp
-SYNCHEADERS := src/fg.h src/common.h src/timing.h
-SYNCBIN := $(OUTPUTDIR)/synchronous
 
 sync: $(SYNCBIN)
-$(SYNCBIN) : $(SYNCSOURCES) $(SYNCHEADERS)
+$(SYNCBIN) : $(SYNCSOURCES) $(HEADERS)
 	$(CXX) -o $@ $(CFLAGS) $(SYNCSOURCES)
+
+
+dbs: $(DBSBIN)
+$(DBSBIN) : $(SOURCES) $(HEADERS)
+	$(CXX) -o $@ $(CFLAGS) $(SOURCES)
+
+PARTSOURCES := src/partition.cpp
+
+
+part: $(PARTBIN)
+$(PARTBIN) : $(PARTSOURCES)
+	$(CXX) -o $@ $(CFLAGS) $(PARTSOURCES) -lmetis
 
 $(TARGETBIN): $(SOURCES) $(HEADERS)
 	$(CXX) -o $@ $(CFLAGS) $(SOURCES)

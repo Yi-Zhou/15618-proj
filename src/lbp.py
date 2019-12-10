@@ -20,8 +20,8 @@ for i in range(height):
             g.factor([to_str(i, j)], potential=np.array([1.0, 0.1]))
 
 edge_potential = np.array([
-    [1.0, 0.1],
-    [0.1, 1.0],
+    [1.0, 0.5],
+    [0.5, 1.0],
 ])
 
 for i in range(height):
@@ -40,25 +40,25 @@ for i in range(height):
 
 # Run (loopy) belief propagation (LBP)
 iters, converged = g.lbp(normalize=True)
-print('LBP ran for %d iterations. Converged = %r' % (iters, converged))
-print()
+# print('LBP ran for %d iterations. Converged = %r' % (iters, converged))
+# print()
 
 # Print out the final messages from LBP
 # g.print_messages()
-print()
+# print()
 
 # Print out the final marginals
 g.print_rv_marginals()
 
-import numpy as np
-import factorgraph as fg
+# import numpy as np
+# import factorgraph as fg
 
 # Make an empty graph
-g = fg.Graph()
+# g = fg.Graph()
 
 # Add some discrete random variables (RVs)
-g.rv('a', 2)
-g.rv('b', 3)
+# g.rv('a', 2)
+# g.rv('b', 3)
 
 # # Add some factors, unary and binary
 # g.factor(['a'], potential=np.array([0.3, 0.7]))

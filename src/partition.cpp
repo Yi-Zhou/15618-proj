@@ -70,9 +70,9 @@ public:
         idx_t n_weights  = 1;
 
         idx_t objval;
-        idx_t xadj[total_nodes + 1];
-        idx_t adjncy[2 * edges];
-        idx_t part[total_nodes];
+        idx_t * xadj = (idx_t *) calloc(total_nodes + 1, sizeof(idx_t));
+        idx_t * adjncy = (idx_t *) calloc(2 * edges, sizeof(idx_t)); 
+        idx_t * part = (idx_t *) calloc(total_nodes, sizeof(idx_t));
 
         int ai = 0;
         xadj[0] = 0;
@@ -80,7 +80,6 @@ public:
         for (int i = 0; i < height; i++) {
             for (int j = 0; j < width; j++) {
                 int idx = positionToIdx(i, j);
-                printf("idx %d\n", idx);
                 //UP
                 if (i > 0) {
                     adjncy[ai++] = positionToIdx(i-1, j);
@@ -100,16 +99,6 @@ public:
                 xadj[xi++] = ai;
             }
         }
-        printf("xi %d ai %d\n", xi, ai);
-        printf("xadj: ");
-        for (int i = 0; i < total_nodes + 1; i++) {
-            printf("%d ", xadj[i]);
-        }
-        printf("\nadjncy: ");
-        for (int i = 0; i < 2 * edges; i++) {
-            printf("%d ", adjncy[i]);
-        }
-        printf("\n");
 
         int ret = METIS_PartGraphKway(&total_nodes, &n_weights, xadj, adjncy,
 				       NULL, NULL, NULL, &n_parts, NULL,
@@ -122,7 +111,7 @@ public:
 
         for(unsigned part_i = 0; part_i < total_nodes; part_i++){
             Vec2<int> p = idxToPosition(part_i);
-	        std::cout << part_i << " " << part[part_i] << std::endl;
+	        // std::cout << part_i << " " << part[part_i] << std::endl;
             output << part[part_i] << std::endl;
         }
 
@@ -139,8 +128,17 @@ private:
 
 };
 
-int main() {
-    MetisImage img(256, 256);
-    img.partition(8, "data/256_256_8.txt");
+int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        printf("Usage: ./partition [width] [number_of_parititons] [dest_file]");
+        exit(1);
+    }
+
+    int width = std::stoi(argv[1]);
+    int partition = std::stoi(argv[2]);
+    printf("width %d partition %d\n", width, partition);
+
+    MetisImage img(width, width);
+    img.partition(partition, argv[3]);
 }
 
