@@ -187,7 +187,7 @@ public:
         }
 
         MPI_Status stats[size_reqs.size()];
-        printf("size_reqs.size %d rank %d num_proc %d\n", size_reqs.size(), rank, n_procs);
+        //printf("size_reqs.size %d rank %d num_proc %d\n", size_reqs.size(), rank, n_procs);
         assert(size_reqs.size() > 0);
         MPI_Waitall(size_reqs.size(), &size_reqs[0], stats);
 
@@ -250,6 +250,15 @@ private:
 
 int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv);
+    if (argc != 5) {
+        printf("Usage: mpirun -np [nproc] synchronous [max_iter] [data_file] [partition_file] [out_file]");
+        exit(1);
+    }
+    int max_iter = std::stoi(argv[1]);
+    char * image_file = argv[2];
+    char * partition_file = argv[3];
+    char * out_file = argv[4];
+    printf("run at most %d iterations\n", max_iter);
     // std::vector<std::vector<int>> img{{1, 1, 1, 1, 1, 1, 1, 1}, 
     //                                   {1, 1, 1, 1, 1, 1, 1, 1},
     //                                   {1, 0, 1, 1, 1, 0, 1, 1},
@@ -261,37 +270,47 @@ int main(int argc, char *argv[]) {
     //                                   };
     // Image& img = ReadImage(image);
 
-    Image img = Image::ReadImage("data/rice.txt");
+    Image img = Image::ReadImage(image_file);
     // printf("img %lu %lu\n", img.pixels.size(), img.pixels[0].size());
-    std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels, "data/256_256_32.txt");
-    SynchronousBeliefPropagator bp(fg);
+    double total_elapsed = 0.0;
+    int num_iter = 5;
+    for (int j = 0; j < num_iter; j++) {
+        printf("Start %dth belief propagation!\n", j);
+        std::shared_ptr<FactorGraph> fg = std::make_shared<FactorGraph>(img.pixels, partition_file);
+        SynchronousBeliefPropagator bp(fg);
 
-    int i = 0;
+        int i = 0;
 
-    Timer t;
-    t.reset();
-    while (!bp.beliefPropagate()) {
-        if (i == 50) {
-            printf("Run 50 iterations but still not converged!\n");
-            break;
+        Timer t;
+        t.reset();
+        
+        while (!bp.beliefPropagate()) {
+            if (i > max_iter) {
+                printf("Run %d iterations but still not converged!\n", max_iter);
+                break;
+            }
+            i++;
         }
-        i++;
-    }
 
-    if (i < 50) {
-        double elapsed = t.elapsed();
-        printf("Converged in %.6fms\n", elapsed);
-        printf("Converged after %d iterations!\n", i);
-    }
+        if (i < max_iter) {
+            double elapsed = t.elapsed();
+            if (j > 0) {
+                total_elapsed += elapsed;
+            }
+            printf("Converged in %.6fs after %d iterations!\n", elapsed, i);
+        }
+        if (j == num_iter - 1) {
+            std::vector<Message> beliefs = bp.merge();
+            int rank; 
+            MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    std::vector<Message> beliefs = bp.merge();
-    int rank; 
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    if (rank == 0) {
-        assert(beliefs.size() == img.w * img.h);
-        FactorGraph::writeDenoisedImage(beliefs, "output/denoised_rice.txt"); 
+            if (rank == 0) {
+                assert(beliefs.size() == img.w * img.h);
+                FactorGraph::writeDenoisedImage(beliefs, out_file); 
+            }
+        }
     }
+    printf("Averge convergence time %.6fs\n", total_elapsed / 4);
 
     MPI_Finalize();
 }
