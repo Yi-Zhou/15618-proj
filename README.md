@@ -8,7 +8,8 @@ mpirun -np 8 build/synchronous 1000 data/noisy_rice.txt data/256_256_8.txt outpu
 TO run synchronous implementation for a noisy_fractal_triangles.png denoising task with 8 processors, you can do
 mpirun -np 8 build/synchronous 1000 data/noisy_fractal_triangles.txt data/2048_2048_8.txt output/denoised_fractal_triangles_8.png
 
-You can find all noisy and original images under the data directory and all denoised images under output directories
+You can find all noisy and original images under the data directory and all denoised images under output directories.
 
 The metis.ipynb contains some helper functions like adding noises to help up preprocess our images.
+The src/lbp.py uses a python lbp library to do loopy belief propagation which helped us to debug our implementation.
 

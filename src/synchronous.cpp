@@ -258,8 +258,8 @@ int main(int argc, char *argv[])
   MPI_Init(&argc, &argv);
   if (argc != 5)
   {
-    printf("Usage: mpirun -np [nproc] synchronous [max_iter] [data_file] 
-            [partition_file] [out_file]\n");
+    printf("Usage: mpirun -np [nproc] synchronous [max_iter] [data_file]" 
+            "[partition_file] [out_file]\n");
     exit(1);
   }
   int max_iter = std::stoi(argv[1]);
