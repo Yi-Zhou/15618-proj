@@ -275,7 +275,7 @@ public:
       {
         return false;
       }
-      if (token.m >= n_procs)
+      if (token.m >= n_procs * 2 && token.recv_msgs_cnt == token.send_msgs_cnt)
       {
         // Everyone has converged, send end signal to every one.
         token.m = END_SIGNAL;
