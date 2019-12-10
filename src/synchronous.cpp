@@ -27,6 +27,7 @@ public:
     this->fg = fg;
   }
 
+  //Merge the results on different processors to each processor
   std::vector<Message> merge()
   {
     std::vector<Message> beliefs;
@@ -85,6 +86,7 @@ public:
     return beliefs;
   }
 
+  // Update messages received from neighbors
   float updateInMessages(std::vector<Message> &in_messages)
   {
     float max_diff = 0;
@@ -102,6 +104,7 @@ public:
     return max_diff;
   }
 
+  // Get the updated messages for neighbors
   void getOutMessages(std::vector<std::vector<Message>> &out_messages)
   {
     for (auto vector : fg->variables)
@@ -120,6 +123,7 @@ public:
           out_msg *= v->in_msgs[i];
         }
 
+        //calculate the out messages to neighbors using the equations
         for (int i = 0; i < 4; i++)
         {
           std::shared_ptr<Variable> neighbor = fg->GetNeighbor(v, i);
@@ -132,8 +136,7 @@ public:
             msg.message = Vec2<float>(prod.x * edge_potential.x.x + 
                                       prod.y * edge_potential.y.x,
                                       prod.x * edge_potential.x.y + 
-                                      prod.y * edge_potential.y.y)
-                              .normalize();
+                                      prod.y * edge_potential.y.y).normalize();
 
             msg.position = Vec2<int>(neighbor->position.x, 
                                       neighbor->position.y);
@@ -144,6 +147,7 @@ public:
     }
   }
 
+  // Synchronous belief propagate. Synchronize at the end of each iteration
   bool beliefPropagate()
   {
     std::unordered_set<int> neighbor_procs_set(neighbor_procs);
@@ -187,7 +191,7 @@ public:
       }
     }
 
-    int wait_procs = neighbor_procs_set.size();
+    //receive the messages from neighbors
     while (!neighbor_procs_set.empty())
     {
 
@@ -198,6 +202,7 @@ public:
         int neighbor = *it;
         int flag;
         MPI_Status status;
+        //probe to see whether there are incoming messages
         MPI_Iprobe(neighbor, tag2, MPI_COMM_WORLD, &flag, &status);
         if (flag)
         {
@@ -224,7 +229,8 @@ public:
   }
 
 private:
-  // tested in toy_test
+  // check whether the algorithm has converged and this implementation 
+  // is tested in toy_test
   bool is_converged(float diff)
   {
     MPI_Request req;
