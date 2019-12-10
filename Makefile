@@ -25,7 +25,7 @@ SYNCBIN := $(OUTPUTDIR)/synchronous
 DBSBIN := $(OUTPUTDIR)/dpsplash
 PARTBIN := $(OUTPUTDIR)/partition
 
-all: $(SYNCBIN) $(DBSBIN) $(PARTBIN)
+all: $(SYNCBIN) $(DBSBIN)
 
 SOURCES := src/dbsplash.cpp src/fg.cpp src/common.cpp
 HEADERS := src/*.h
