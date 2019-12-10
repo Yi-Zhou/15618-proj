@@ -99,16 +99,6 @@ public:
                 xadj[xi++] = ai;
             }
         }
-        // printf("xi %d ai %d\n", xi, ai);
-        // printf("xadj: ");
-        // for (int i = 0; i < total_nodes + 1; i++) {
-        //     printf("%d ", xadj[i]);
-        // }
-        // printf("\nadjncy: ");
-        // for (int i = 0; i < 2 * edges; i++) {
-        //     printf("%d ", adjncy[i]);
-        // }
-        // printf("\n");
 
         int ret = METIS_PartGraphKway(&total_nodes, &n_weights, xadj, adjncy,
 				       NULL, NULL, NULL, &n_parts, NULL,
