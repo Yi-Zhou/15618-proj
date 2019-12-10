@@ -115,14 +115,10 @@ public:
 class Image {
 public:
   int w, h;
-  // std::vector<int> pixels;
   std::vector<std::vector<int>> pixels;
 
   static Image ReadImage(const char* filename);
 
-  // void SetColor(int i, int j, int color) {
-  //   this->pixels[(i * this->w) + j] = color;
-  // }
   void SaveToFile(const char * filename);
   Image(std::vector<std::vector<int>>& pixels) {
     this->pixels = pixels;

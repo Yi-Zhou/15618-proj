@@ -2,7 +2,6 @@
 
 Variable::Variable(int x, int y, int color) {
   // Colors: 0-Black | 1-White.
-  //TODO: remove redundant variable ?
   position = Vec2<int>(x, y);
 
   in_msgs[4] = Vec2<float>(color? ENERGY:1.0, color? 1.0:ENERGY);
@@ -16,11 +15,9 @@ Variable::Variable(int x, int y, int color) {
 }
 
 Vec2<float> Variable::calulateBelief() {
-  //TODO: whether to normalize
   Vec2<float> belief(1.0, 1.0);
   for (int i = 0; i < 5; i++) {
     belief *= in_msgs[i];
-    //printf("v(%d, %d) in_msgs[%d](%f, %f)\n", position.x, position.y, i, in_msgs[i].x, in_msgs[i].y);
   }
   return belief;
 }
@@ -46,10 +43,7 @@ FactorGraph::FactorGraph(std::vector<std::vector<int>>& img, const char *partiti
       std::string line;
       std::getline(inFile, line);
       std::shared_ptr<Variable> var = std::make_shared<Variable>(Variable(i, j, img[i][j]));
-      //TODO: remove this line
-      //var->partition = 2 * (i / 2) + j / 4;
       var->partition = std::stoi(line);
-      //var->partition = i * width + j;
       variables[i].push_back(var);
     }
   }

@@ -111,7 +111,6 @@ public:
 
         for(unsigned part_i = 0; part_i < total_nodes; part_i++){
             Vec2<int> p = idxToPosition(part_i);
-	        // std::cout << part_i << " " << part[part_i] << std::endl;
             output << part[part_i] << std::endl;
         }
 
